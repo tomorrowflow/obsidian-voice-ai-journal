@@ -1,85 +1,48 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { Editor, MarkdownView, Notice, Plugin } from 'obsidian';
+import { initAI, waitForAI } from '@obsidian-ai-providers/sdk';
 
-// Remember to rename these classes and interfaces!
+// Import settings and types
+import { VoiceAIJournalSettings, DEFAULT_SETTINGS, VoiceAIJournalSettingsTab } from './src/settings';
+import { JournalTemplate, AIProviders } from './src/types';
 
-interface MyPluginSettings {
-	mySetting: string;
-}
+// Import internal modules
+import './src/styles.css';
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+// All interfaces have been moved to src/types.ts
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+// Settings have been moved to src/settings/settings.ts
+
+export default class VoiceAIJournalPlugin extends Plugin {
+	settings: VoiceAIJournalSettings;
+	aiProviders: AIProviders | null = null;
 
 	async onload() {
+		console.log('Loading Voice AI Journal plugin');
+
+		// Initialize settings
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
+		// Initialize AI Providers integration
+		initAI(this.app, this, async () => {
+			try {
+				const aiResolver = await waitForAI();
+				this.aiProviders = await aiResolver.promise;
+				console.log('AI Providers loaded', this.aiProviders?.providers || 'No providers found');
+			} catch (error) {
+				console.error('Failed to initialize AI Providers', error);
+				new Notice('Voice AI Journal: Failed to initialize AI Providers plugin. Please make sure it is installed and enabled.');
 			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
+			// Initialize the settings tab
+			this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
+			
+			// Register plugin components after AI is initialized
+			this.registerPluginComponents();
 		});
-
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
 	onunload() {
-
+		console.log('Unloading Voice AI Journal plugin');
 	}
 
 	async loadSettings() {
@@ -89,46 +52,163 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	// This method loads all UI components and registers commands
+	async registerPluginComponents() {
+		// Import components dynamically to avoid circular dependencies
+		const { RecordingModal } = await import('./src/ui/RecordingModal');
+		const { TemplateManagerModal } = await import('./src/ui/TemplateEditorModal');
+
+		// Add ribbon icon
+		if (this.settings.showRibbonIcon) {
+			const ribbonIconEl = this.addRibbonIcon('microphone', 'Voice AI Journal', (evt: MouseEvent) => {
+				// Open recording modal when clicked
+				if (!this.aiProviders) {
+					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+					return;
+				}
+				new RecordingModal(this.app, this).open();
+			});
+			ribbonIconEl.addClass('voice-ai-journal-ribbon-icon');
+		}
+
+		// Register commands
+		this.addCommand({
+			id: 'start-voice-recording',
+			name: 'Start Voice Recording',
+			callback: () => {
+				if (!this.aiProviders) {
+					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+					return;
+				}
+				new RecordingModal(this.app, this).open();
+			}
+		});
+
+		this.addCommand({
+			id: 'manage-journal-templates',
+			name: 'Manage Journal Templates',
+			callback: () => {
+				new TemplateManagerModal(this.app, this).open();
+			}
+		});
+
+		this.addCommand({
+			id: 'transcribe-audio-file',
+			name: 'Transcribe Audio File',
+			checkCallback: (checking: boolean) => {
+				// Only enable this command if there's an active file that is an audio file
+				const activeFile = this.app.workspace.getActiveFile();
+				const isAudioFile = activeFile?.extension && ['mp3', 'wav', 'ogg', 'webm', 'm4a'].includes(activeFile.extension);
+				
+				if (checking) {
+					return !!isAudioFile && !!this.aiProviders;
+				}
+
+				if (!this.aiProviders) {
+					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+					return false;
+				}
+
+				if (isAudioFile && activeFile) {
+					new Notice(`Transcription of audio files will be implemented in a future version`);
+					return true;
+				}
+				return false;
+			}
+		});
+
+		this.addCommand({
+			id: 'generate-mermaid-diagram',
+			name: 'Generate Mermaid Diagram from Journal',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				if (!this.aiProviders) {
+					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+					return;
+				}
+
+				// Get selected text or entire document
+				const text = editor.getSelection() || editor.getValue();
+				if (!text) {
+					new Notice('No text selected or document is empty');
+					return;
+				}
+
+				new Notice('Generating Mermaid diagram...');
+				
+				// Import AIManager to avoid circular dependencies
+				const { AIManager } = await import('./src/ai/AIManager');
+				const aiManager = new AIManager(this.aiProviders);
+				
+				try {
+					const mermaidCode = await aiManager.generateMermaidChart(text, this.settings.aiProviders.analysis);
+					
+					if (!mermaidCode) {
+						new Notice('Failed to generate Mermaid diagram');
+						return;
+					}
+
+					// Insert the mermaid code block at cursor position
+					const mermaidBlock = '```mermaid\n' + mermaidCode + '\n```';
+					const cursorPos = editor.getCursor();
+					
+					// If there's a selection, replace it, otherwise insert at cursor
+					if (editor.getSelection()) {
+						editor.replaceSelection(mermaidBlock);
+					} else {
+						editor.replaceRange('\n\n' + mermaidBlock + '\n\n', cursorPos);
+					}
+					
+					new Notice('Mermaid diagram generated successfully');
+				} catch (error: unknown) {
+					console.error('Error generating Mermaid diagram:', error);
+					new Notice(`Failed to generate Mermaid diagram: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			}
+		});
+	}
+
+	// Method to get template by id
+	getTemplateById(id: string): JournalTemplate | undefined {
+		return this.settings.templates.find(template => template.id === id);
+	}
+
+	// Method to add a new template
+	addTemplate(template: JournalTemplate) {
+		this.settings.templates.push(template);
+		this.saveSettings();
+	}
+
+	// Method to update a template
+	updateTemplate(templateId: string, updatedTemplate: Partial<JournalTemplate>) {
+		const templateIndex = this.settings.templates.findIndex(t => t.id === templateId);
+		if (templateIndex >= 0) {
+			this.settings.templates[templateIndex] = {
+				...this.settings.templates[templateIndex],
+				...updatedTemplate
+			};
+			this.saveSettings();
+			return true;
+		}
+		return false;
+	}
+
+	// Method to delete a template
+	deleteTemplate(templateId: string) {
+		const initialLength = this.settings.templates.length;
+		this.settings.templates = this.settings.templates.filter(t => t.id !== templateId);
+		
+		if (this.settings.templates.length < initialLength) {
+			// If the deleted template was the default, set a new default
+			if (this.settings.defaultTemplate === templateId && this.settings.templates.length > 0) {
+				this.settings.defaultTemplate = this.settings.templates[0].id;
+			}
+			this.saveSettings();
+			return true;
+		}
+		return false;
+	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+// Settings tab class has been moved to src/settings/SettingsTab.ts
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
-	}
-
-	display(): void {
-		const {containerEl} = this;
-
-		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
-	}
-}

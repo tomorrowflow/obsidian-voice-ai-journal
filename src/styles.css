@@ -1,0 +1,130 @@
+/* Voice AI Journal Styles */
+
+/* Ribbon icon */
+.voice-ai-journal-ribbon-icon {
+  color: var(--interactive-accent);
+}
+
+/* Recording UI */
+.voice-ai-journal-recording-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+}
+
+.voice-ai-journal-recording-status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.voice-ai-journal-recording-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.voice-ai-journal-recording-indicator.recording {
+  background-color: red;
+  animation: pulse 1.5s infinite;
+}
+
+.voice-ai-journal-recording-indicator.paused {
+  background-color: orange;
+}
+
+.voice-ai-journal-recording-indicator.stopped {
+  background-color: gray;
+}
+
+.voice-ai-journal-timer {
+  font-family: monospace;
+  font-size: 1.2em;
+  margin-left: 8px;
+}
+
+.voice-ai-journal-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.voice-ai-journal-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.voice-ai-journal-control-button:hover {
+  background-color: var(--interactive-hover);
+}
+
+.voice-ai-journal-control-button.primary {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.voice-ai-journal-control-button.primary:hover {
+  background-color: var(--interactive-accent-hover);
+}
+
+.voice-ai-journal-waveform {
+  width: 100%;
+  height: 60px;
+  margin-bottom: 15px;
+  background-color: var(--background-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Template editing UI */
+.voice-ai-journal-template-list {
+  margin-bottom: 20px;
+}
+
+.voice-ai-journal-template-item {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  padding: 10px;
+  background-color: var(--background-secondary);
+}
+
+.voice-ai-journal-template-name {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.voice-ai-journal-template-description {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.voice-ai-journal-template-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 1;
+  }
+}

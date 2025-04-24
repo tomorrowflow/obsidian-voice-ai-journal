@@ -1,15 +1,21 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "obsidian-voice-ai-journal",
 	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"description": "Create journal entries using voice recording with AI transcription and analysis.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": [],
-	"author": "",
+	"keywords": [
+		"obsidian",
+		"voice",
+		"journal",
+		"ai",
+		"transcription"
+	],
+	"author": "tomorrowflow",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
@@ -20,5 +26,8 @@
 		"obsidian": "latest",
 		"tslib": "2.4.0",
 		"typescript": "4.7.4"
+	},
+	"dependencies": {
+		"@obsidian-ai-providers/sdk": "^1.0.3"
 	}
 }
