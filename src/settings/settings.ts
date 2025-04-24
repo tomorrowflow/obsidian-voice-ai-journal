@@ -9,9 +9,12 @@ export interface VoiceAIJournalSettings {
 	defaultTemplate: string;
 
 	// AI provider settings
+	transcriptionProvider: 'aiProviders' | 'localWhisper'; // Which transcription provider to use
+	localWhisperEndpoint: string; // URL for local whisper API endpoint
 	aiProviders: {
 		transcription: string | null;
 		analysis: string | null;
+		mermaidFixer: string | null;
 	};
 
 	// Audio settings
@@ -52,9 +55,12 @@ export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
 		}
 	],
 	defaultTemplate: 'default',
+	transcriptionProvider: 'aiProviders', // Default to AI Providers
+	localWhisperEndpoint: 'http://localhost:9000', // Default endpoint for local whisper API
 	aiProviders: {
 		transcription: null,
-		analysis: null
+		analysis: null,
+		mermaidFixer: null
 	},
 	audioQuality: 'medium',
 	automaticSpeechDetection: true,

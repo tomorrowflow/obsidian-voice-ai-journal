@@ -122,29 +122,64 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 						new Notice('Please go to Settings > Community plugins > AI Providers > Settings to configure the AI integration.');
 					}));
 		} else {
-			// Model selection for transcription
+			// Transcription source selection (AI Providers vs Local Whisper)
 			new Setting(containerEl)
-				.setName('Transcription Provider')
-				.setDesc('Select the AI provider to use for voice transcription')
+				.setName('Transcription Source')
+				.setDesc('Choose between AI Providers plugin or local Whisper server for transcription')
 				.addDropdown(dropdown => {
-					// Add default empty option
-					dropdown.addOption('', 'Select a provider');
+					dropdown.addOption('aiProviders', 'AI Providers Plugin');
+					dropdown.addOption('localWhisper', 'Local Whisper API');
 					
-					// Add all available providers
-					if (this.plugin.aiProviders && this.plugin.aiProviders.providers) {
-						this.plugin.aiProviders.providers.forEach((provider: AIProvider) => {
-							dropdown.addOption(provider.id, `${provider.name} (${provider.model})`);
-						});
-					}
+					dropdown.setValue(this.plugin.settings.transcriptionProvider);
 					
-					// Set the selected value if exists
-					dropdown.setValue(this.plugin.settings.aiProviders.transcription || '');
-					
-					dropdown.onChange(async (value) => {
-						this.plugin.settings.aiProviders.transcription = value || null;
+					dropdown.onChange(async (value: 'aiProviders' | 'localWhisper') => {
+						this.plugin.settings.transcriptionProvider = value;
 						await this.plugin.saveSettings();
+						
+						// Force refresh settings display to show/hide relevant options
+						this.display();
 					});
 				});
+				
+			// Local Whisper endpoint (only shown when local Whisper is selected)
+			if (this.plugin.settings.transcriptionProvider === 'localWhisper') {
+				new Setting(containerEl)
+					.setName('Local Whisper Endpoint')
+					.setDesc('URL for your local Whisper ASR webservice (see https://github.com/ahmetoner/whisper-asr-webservice)')
+					.addText(text => text
+						.setPlaceholder('http://localhost:9000')
+						.setValue(this.plugin.settings.localWhisperEndpoint)
+						.onChange(async (value) => {
+							this.plugin.settings.localWhisperEndpoint = value;
+							await this.plugin.saveSettings();
+						}));
+			}
+			
+			// AI Provider Transcription selection (only shown when AI Providers is selected)
+			if (this.plugin.settings.transcriptionProvider === 'aiProviders') {
+				new Setting(containerEl)
+					.setName('Transcription Provider')
+					.setDesc('Select the AI provider to use for voice transcription')
+					.addDropdown(dropdown => {
+						// Add default empty option
+						dropdown.addOption('', 'Select a provider');
+						
+						// Add all available providers
+						if (this.plugin.aiProviders && this.plugin.aiProviders.providers) {
+							this.plugin.aiProviders.providers.forEach((provider: AIProvider) => {
+								dropdown.addOption(provider.id, `${provider.name} (${provider.model})`);
+							});
+						}
+						
+						// Set the selected value if exists
+						dropdown.setValue(this.plugin.settings.aiProviders.transcription || '');
+						
+						dropdown.onChange(async (value) => {
+							this.plugin.settings.aiProviders.transcription = value || null;
+							await this.plugin.saveSettings();
+						});
+					});
+			}
 			
 			// Model selection for analysis
 			new Setting(containerEl)
@@ -405,6 +440,6 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		// We'll add template editing UI here in future iterations
+			// We'll add template editing UI here in future iterations
 	}
 }

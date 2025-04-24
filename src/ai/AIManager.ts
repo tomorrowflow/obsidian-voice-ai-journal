@@ -42,15 +42,25 @@ export class AIManager {
     }
 
     /**
-     * Transcribe audio using either AI Providers plugin or local Whisper service
-     * 
-     * @param audioBlob The audio blob to transcribe
-     * @param providerId The ID of the AI provider to use, or null to use default
-     * @param language Optional language code (overrides settings)
+     * Transcribe audio data to text
+     * @param audioBlob Audio data as a blob
+     * @param providerId Optional AI provider ID to use for transcription
+     * @param language Optional language code for transcription
      * @returns The transcription text
      */
     async transcribeAudio(audioBlob: Blob, providerId: string | null, language?: string): Promise<string> {
-        // Using AI Providers for transcription
+        // Check settings for transcription provider
+        const transcriptionProvider = this.plugin?.settings?.transcriptionProvider || 'aiProviders';
+        
+        // Get language setting from plugin settings or use provided language
+        const transcriptionLanguage = language || (this.plugin?.settings?.transcriptionLanguage || 'auto');
+        
+        // Use local Whisper ASR if configured
+        if (transcriptionProvider === 'localWhisper') {
+            return this.transcribeWithLocalWhisper(audioBlob, transcriptionLanguage);
+        } 
+        
+        // Otherwise use AI Providers for transcription
         if (!this.isInitialized()) {
             throw new Error('AI Providers not initialized');
         }
@@ -60,9 +70,6 @@ export class AIManager {
         if (!provider) {
             throw new Error('No AI provider available for transcription');
         }
-
-        // Get language setting from plugin settings or use provided language
-        const transcriptionLanguage = language || (this.plugin?.settings?.transcriptionLanguage || 'auto');
         
         // Convert audio to base64
         const base64Audio = await this.blobToBase64(audioBlob);
@@ -107,6 +114,66 @@ export class AIManager {
         }
     }
     
+    /**
+     * Transcribe audio using local Whisper ASR server
+     * 
+     * @param audioBlob The audio blob to transcribe
+     * @param language Language code for transcription
+     * @returns Transcription text
+     */
+    private async transcribeWithLocalWhisper(audioBlob: Blob, language: string): Promise<string> {
+        // Get the endpoint from settings
+        const endpoint = this.plugin?.settings?.localWhisperEndpoint;
+        if (!endpoint) {
+            throw new Error('Local Whisper endpoint not configured');
+        }
+        
+        // Prepare the form data
+        const formData = new FormData();
+        formData.append('audio_file', audioBlob, 'recording.wav');
+        
+        // Add language if it's not auto
+        if (language && language !== 'auto') {
+            formData.append('language', language);
+        }
+        
+        try {
+            // Make the API request
+            const response = await fetch(`${endpoint}/asr`, {
+                method: 'POST',
+                body: formData,
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            return result.text || '';
+        } catch (error) {
+            console.error('Local Whisper transcription error:', error);
+            throw new Error(`Failed to transcribe with Local Whisper: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    
+    /**
+     * Transcribe an audio file
+     * 
+     * @param file The file to be transcribed
+     * @returns The transcription text
+     */
+    async transcribeAudioFile(file: File): Promise<string> {
+        // Convert the file to a blob
+        const blob = new Blob([await file.arrayBuffer()], { type: file.type });
+        
+        // The transcribeAudio method will check the transcription provider setting
+        // and use the appropriate method (local Whisper or AI Providers)
+        const providerId = this.plugin?.settings?.aiProviders?.transcription || null;
+
+        // Transcribe the audio using the existing method
+        return this.transcribeAudio(blob, providerId);
+    }
+
     /**
      * Convert a Blob to a base64 string
      * @param blob The blob to convert
