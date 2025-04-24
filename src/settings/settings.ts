@@ -26,7 +26,6 @@ export interface VoiceAIJournalSettings {
 	appendToExistingNote: boolean;
 
 	// UI settings
-	showRibbonIcon: boolean;
 	
 	// Version tracking
 	_version: number;
@@ -64,6 +63,5 @@ export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
 	noteNamingFormat: 'Journal/{{date:YYYY/MM/YYYY-MM-DD}}',
 	recordingsLocation: '/Recordings',
 	appendToExistingNote: false,
-	showRibbonIcon: true,
 	_version: 1
 };

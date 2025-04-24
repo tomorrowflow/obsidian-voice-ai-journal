@@ -59,18 +59,16 @@ export default class VoiceAIJournalPlugin extends Plugin {
 		const { RecordingModal } = await import('./src/ui/RecordingModal');
 		const { TemplateManagerModal } = await import('./src/ui/TemplateEditorModal');
 
-		// Add ribbon icon
-		if (this.settings.showRibbonIcon) {
-			const ribbonIconEl = this.addRibbonIcon('microphone', 'Voice AI Journal', (evt: MouseEvent) => {
-				// Open recording modal when clicked
-				if (!this.aiProviders) {
-					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
-					return;
-				}
-				new RecordingModal(this.app, this).open();
-			});
-			ribbonIconEl.addClass('voice-ai-journal-ribbon-icon');
-		}
+		// Add ribbon icon for quick access
+		const ribbonIconEl = this.addRibbonIcon('microphone', 'Voice AI Journal', (evt: MouseEvent) => {
+			// Open recording modal when clicked
+			if (!this.aiProviders) {
+				new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+				return;
+			}
+			new RecordingModal(this.app, this).open();
+		});
+		ribbonIconEl.addClass('voice-ai-journal-ribbon-icon');
 
 		// Register commands
 		this.addCommand({

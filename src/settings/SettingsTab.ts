@@ -231,27 +231,6 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(containerEl)
-			.setName('Note Naming Format')
-			.setDesc('Format for naming new journal entries. Use {{date:YYYY-MM-DD}} for date formatting.')
-			.addText(text => text
-				.setPlaceholder('Journal/{{date:YYYY/MM/YYYY-MM-DD}}')
-				.setValue(this.plugin.settings.noteNamingFormat)
-				.onChange(async (value) => {
-					this.plugin.settings.noteNamingFormat = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Append to Existing Note')
-			.setDesc('If a note with the same name exists, append to it instead of creating a new one')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.appendToExistingNote)
-				.onChange(async (value) => {
-					this.plugin.settings.appendToExistingNote = value;
-					await this.plugin.saveSettings();
-				}));
-
 		// Recording Settings
 		containerEl.createEl('h3', {text: 'Recording Settings'});
 
@@ -406,21 +385,6 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		// UI Settings
-		containerEl.createEl('h3', {text: 'User Interface'});
-
-		new Setting(containerEl)
-			.setName('Show Ribbon Icon')
-			.setDesc('Show Voice AI Journal icon in the ribbon')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.showRibbonIcon)
-				.onChange(async (value) => {
-					this.plugin.settings.showRibbonIcon = value;
-					await this.plugin.saveSettings();
-					// Force reload the plugin to update ribbon
-					this.plugin.onunload();
-					this.plugin.onload();
-				}));
 
 		// Template Management (simplified, we'll enhance this with a separate UI component later)
 		containerEl.createEl('h3', {text: 'Templates'});
