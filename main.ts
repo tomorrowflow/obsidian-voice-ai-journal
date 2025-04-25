@@ -1,5 +1,6 @@
 import { Editor, MarkdownView, Notice, Plugin } from 'obsidian';
 import { initAI, waitForAI } from '@obsidian-ai-providers/sdk';
+import { Platform } from 'obsidian';
 
 // Import settings and types
 import { VoiceAIJournalSettings, DEFAULT_SETTINGS, VoiceAIJournalSettingsTab } from './src/settings';
@@ -59,16 +60,49 @@ export default class VoiceAIJournalPlugin extends Plugin {
 		const { RecordingModal } = await import('./src/ui/RecordingModal');
 		const { TemplateManagerModal } = await import('./src/ui/TemplateEditorModal');
 
-		// Add ribbon icon for quick access
-		const ribbonIconEl = this.addRibbonIcon('microphone', 'Voice AI Journal', (evt: MouseEvent) => {
-			// Open recording modal when clicked
-			if (!this.aiProviders) {
-				new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+		// Add two separate ribbon icons instead of a dropdown menu
+		// 1. Recording icon
+		this.addRibbonIcon('microphone', 'Start voice recording', (evt: MouseEvent) => {
+			if (!this.aiProviders && this.settings.transcriptionProvider !== 'localWhisper') {
+				new Notice('Voice AI Journal: AI Providers plugin not initialized or local Whisper not configured. Please check settings.');
 				return;
 			}
 			new RecordingModal(this.app, this).open();
 		});
-		ribbonIconEl.addClass('voice-ai-journal-ribbon-icon');
+		
+		// 2. Upload audio file icon (desktop only)
+		// Only add this button on desktop platforms
+		if (!Platform.isMobile) {
+			this.addRibbonIcon('upload', 'Upload audio file', async (evt: MouseEvent) => {
+				if (!this.aiProviders && this.settings.transcriptionProvider !== 'localWhisper') {
+					new Notice('Voice AI Journal: AI Providers plugin not initialized or local Whisper not configured. Please check settings.');
+					return;
+				}
+				
+				// Create a temporary file input element for this specific action
+				const fileInput = document.createElement('input');
+				fileInput.type = 'file';
+				fileInput.multiple = false;
+				fileInput.accept = '.mp3,.wav,.ogg,.webm,.m4a,.mp4,.flac';
+				fileInput.style.display = 'none';
+				document.body.appendChild(fileInput);
+				
+				// Set up a one-time use listener
+				fileInput.addEventListener('change', async () => {
+				if (fileInput.files && fileInput.files.length > 0) {
+					const file = fileInput.files[0];
+					await this.processAudioFile(file);
+				}
+					// Clean up - remove the element after use
+					if (fileInput.parentNode) {
+						fileInput.parentNode.removeChild(fileInput);
+					}
+				}, { once: true }); // Important: using { once: true } means the listener removes itself after firing
+				
+				// Trigger file selection dialog
+				fileInput.click();
+			});
+		} // End of desktop-only condition
 
 		// Register commands
 		this.addCommand({
@@ -205,6 +239,75 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			return true;
 		}
 		return false;
+	}
+	
+	/**
+	 * Processes an uploaded audio file
+	 * @param file The audio file from the file upload dialog
+	 */
+	private async processAudioFile(file: File) {
+		try {
+			new Notice(`Processing audio file: ${file.name}`);
+			
+			// Get recordings location from settings
+			const recordingsFolder = this.settings.recordingsLocation || '/Recordings';
+			
+			// Create folder if it doesn't exist
+			await this.ensureFolderExists(recordingsFolder);
+			
+			// Generate a filename with timestamp to avoid duplicates
+			const timestamp = new Date().toISOString().replace(/[:T-]/g, '').slice(0, 14);
+			// Extract file extension from file name
+			const fileExt = file.name.split('.').pop() || 'mp3';
+			const fileName = `recording-${timestamp}.${fileExt}`;
+			const filePath = `${recordingsFolder}/${fileName}`;
+			
+			// Convert File to ArrayBuffer
+			const buffer = await file.arrayBuffer();
+			const array = new Uint8Array(buffer);
+			
+			// Save to vault
+			await this.app.vault.createBinary(filePath, array);
+			
+			new Notice(`Audio file saved to ${filePath}`);
+			
+			// TODO: Implement transcription
+			if (this.settings.transcriptionProvider === 'localWhisper') {
+				// Local whisper transcription will be implemented
+				new Notice(`Local Whisper transcription will be implemented soon`);
+			} else {
+				// AI Providers transcription will be implemented
+				new Notice(`AI Provider transcription will be implemented soon`);
+			}
+		} catch (error) {
+			console.error('Failed to process audio file:', error);
+			new Notice(`Failed to process audio file: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	
+	/**
+	 * Ensures a folder exists in the vault, creating it if necessary
+	 * @param path The folder path to ensure
+	 */
+	private async ensureFolderExists(path: string): Promise<void> {
+		if (path === '/') return; // Root always exists
+		
+		const folderExists = this.app.vault.getAbstractFileByPath(path);
+		if (!folderExists) {
+			// Create folder and any parent folders that don't exist
+			try {
+				await this.app.vault.createFolder(path);
+				console.log(`Created folder: ${path}`);
+			} catch (error) {
+				// If the folder creation fails, it might be because parent folders don't exist
+				const parentPath = path.substring(0, path.lastIndexOf('/'));
+				if (parentPath) {
+					await this.ensureFolderExists(parentPath);
+					// Try again now that parent exists
+					await this.app.vault.createFolder(path);
+				}
+			}
+		}
 	}
 }
 

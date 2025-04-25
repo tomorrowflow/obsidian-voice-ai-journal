@@ -174,7 +174,9 @@ export class RecordingModal extends Modal {
         
         if (icon) {
             const iconEl = document.createElement('span');
-            iconEl.addClass(`voice-ai-journal-icon ${icon}-icon`);
+            // Fix: Add each class separately to avoid space-related errors
+            iconEl.addClass('voice-ai-journal-icon');
+            iconEl.addClass(`${icon}-icon`);
             button.appendChild(iconEl);
         }
         
