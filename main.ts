@@ -1,12 +1,14 @@
-import { Editor, MarkdownView, Notice, Plugin } from 'obsidian';
+import { Editor, MarkdownView, Notice, Plugin, TFile, Platform } from 'obsidian';
 import { initAI, waitForAI } from '@obsidian-ai-providers/sdk';
-import { Platform } from 'obsidian';
 
 // Import settings and types
 import { VoiceAIJournalSettings, DEFAULT_SETTINGS, VoiceAIJournalSettingsTab } from './src/settings';
 import { JournalTemplate, AIProviders } from './src/types';
 
 // Import internal modules
+import { AIManager } from './src/ai/AIManager';
+import { ASRManager } from './src/ai/ASRManager';
+import { TemplateManager } from './src/templates/TemplateManager';
 import './src/styles.css';
 
 // All interfaces have been moved to src/types.ts
@@ -16,6 +18,9 @@ import './src/styles.css';
 export default class VoiceAIJournalPlugin extends Plugin {
 	settings: VoiceAIJournalSettings;
 	aiProviders: AIProviders | null = null;
+	aiManager: AIManager;
+	asrManager: ASRManager;
+	templateManager: TemplateManager;
 
 	async onload() {
 		console.log('Loading Voice AI Journal plugin');
@@ -36,6 +41,15 @@ export default class VoiceAIJournalPlugin extends Plugin {
 
 			// Initialize the settings tab
 			this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
+			
+			// Initialize AI Manager with the AI Providers instance
+			this.aiManager = new AIManager(this.aiProviders, this);
+			
+			// Initialize ASR Manager
+			this.asrManager = new ASRManager(this);
+			
+			// Initialize Template Manager
+			this.templateManager = new TemplateManager();
 			
 			// Register plugin components after AI is initialized
 			this.registerPluginComponents();
@@ -173,7 +187,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				const aiManager = new AIManager(this.aiProviders);
 				
 				try {
-					const mermaidCode = await aiManager.generateMermaidChart(text, this.settings.aiProviders.analysis);
+					const mermaidCode = await aiManager.generateMermaidChart(text, this.settings.aiProviders?.analysis);
 					
 					if (!mermaidCode) {
 						new Notice('Failed to generate Mermaid diagram');
@@ -271,13 +285,51 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			
 			new Notice(`Audio file saved to ${filePath}`);
 			
-			// TODO: Implement transcription
-			if (this.settings.transcriptionProvider === 'localWhisper') {
-				// Local whisper transcription will be implemented
-				new Notice(`Local Whisper transcription will be implemented soon`);
-			} else {
-				// AI Providers transcription will be implemented
-				new Notice(`AI Provider transcription will be implemented soon`);
+			// Get transcription from saved file
+			const audioFile = this.app.vault.getAbstractFileByPath(filePath);
+			if (!audioFile || !(audioFile instanceof TFile)) {
+				throw new Error('Could not find the saved audio file');
+			}
+			
+			new Notice('Transcribing audio file...');
+			try {
+				// Use our ASRManager to transcribe the audio file
+				const transcriptionResult = await this.asrManager.transcribeAudioFileFromVault(audioFile);
+				
+				if (!transcriptionResult || !transcriptionResult.text) {
+					throw new Error('Transcription failed or returned empty result');
+				}
+				
+				// Create a note with the transcription
+				const date = new Date();
+				const formattedDate = date.toISOString().split('T')[0];
+				const noteName = `${formattedDate} Transcription.md`;
+				const notePath = `${this.settings.noteLocation}/${noteName}`;
+				
+				// Create the content
+				let content = `# Audio Transcription - ${formattedDate}\n\n`;
+				
+				// Add detected language info if available
+				if (transcriptionResult.detectedLanguage) {
+					content += `*Detected language: ${transcriptionResult.detectedLanguage}*\n\n`;
+				}
+				
+				// Add the transcription text
+				content += `## Transcription\n\n${transcriptionResult.text}\n\n`;
+				
+				// Add link to the audio file
+				content += `[Original Audio](${filePath})\n`;
+				
+				// Create the note
+				const file = await this.app.vault.create(notePath, content);
+				
+				// Open the note
+				await this.app.workspace.getLeaf().openFile(file);
+				
+				new Notice('Audio transcription complete!');
+			} catch (transcriptionError) {
+				console.error('Transcription error:', transcriptionError);
+				new Notice(`Transcription failed: ${transcriptionError instanceof Error ? transcriptionError.message : String(transcriptionError)}`);
 			}
 		} catch (error) {
 			console.error('Failed to process audio file:', error);
