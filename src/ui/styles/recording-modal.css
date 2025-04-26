@@ -1,0 +1,126 @@
+/* Recording Modal Styles */
+.voice-ai-journal-modal .modal-content {
+    padding: 20px;
+}
+
+.voice-ai-journal-modal-mobile .modal-content {
+    padding: 12px;
+}
+
+.voice-ai-journal-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Timer Display */
+.voice-ai-journal-timer-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+}
+
+.voice-ai-journal-timer {
+    font-size: 3em;
+    font-weight: bold;
+    font-family: monospace;
+}
+
+.voice-ai-journal-modal-mobile .voice-ai-journal-timer {
+    font-size: 2.5em;
+}
+
+/* Button Container */
+.voice-ai-journal-button-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+/* Button Styles */
+.voice-ai-journal-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.voice-ai-journal-button:hover {
+    opacity: 0.9;
+}
+
+.voice-ai-journal-button-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.voice-ai-journal-start-button {
+    background-color: var(--color-green);
+    color: var(--text-on-accent);
+}
+
+.voice-ai-journal-pause-button {
+    background-color: var(--color-orange);
+    color: var(--text-on-accent);
+}
+
+.voice-ai-journal-stop-button {
+    background-color: var(--color-blue);
+    color: var(--text-on-accent);
+}
+
+.voice-ai-journal-reset-button {
+    background-color: var(--color-red);
+    color: var(--text-on-accent);
+}
+
+/* Microphone Info */
+.voice-ai-journal-mic-info {
+    font-style: italic;
+    opacity: 0.8;
+    text-align: center;
+    margin-top: 8px;
+}
+
+/* Options Container */
+.voice-ai-journal-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.voice-ai-journal-options-container h4 {
+    margin: 5px 0;
+}
+
+/* Date Container */
+.voice-ai-journal-date-container {
+    margin-top: 8px;
+}
+
+/* Template Container */
+.voice-ai-journal-template-container {
+    margin-top: 12px;
+}
+
+/* Options Buttons */
+.voice-ai-journal-language-options,
+.voice-ai-journal-model-options {
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.voice-ai-journal-options-button {
+    padding: 8px 12px;
+    border-radius: 4px;
+    background-color: var(--background-modifier-hover);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}

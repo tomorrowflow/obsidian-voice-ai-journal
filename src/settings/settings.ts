@@ -21,6 +21,7 @@ export interface VoiceAIJournalSettings {
 	audioQuality: 'low' | 'medium' | 'high';
 	automaticSpeechDetection: boolean;
 	transcriptionLanguage: string; // Language for speech recognition
+	selectedMicrophoneId?: string; // Optional ID of the selected microphone device
 
 	// Journal settings
 	noteLocation: string;
@@ -65,6 +66,7 @@ export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
 	audioQuality: 'medium',
 	automaticSpeechDetection: true,
 	transcriptionLanguage: 'auto', // Default to auto language detection
+	selectedMicrophoneId: undefined, // Default to system default microphone
 	noteLocation: '/',
 	noteNamingFormat: 'Journal/{{date:YYYY/MM/YYYY-MM-DD}}',
 	recordingsLocation: '/Recordings',

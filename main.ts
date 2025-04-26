@@ -8,110 +8,333 @@ import { JournalTemplate, AIProviders } from './src/types';
 // Import internal modules
 import { AIManager } from './src/ai/AIManager';
 import { ASRManager } from './src/ai/ASRManager';
+import { RecordingManager, RecordingState } from './src/recording/RecordingManager';
+import { RecordingModal } from './src/ui/modals/RecordingModal';
 import { TemplateManager } from './src/templates/TemplateManager';
 import './src/styles.css';
+import './src/ui/styles/recording-modal.css';
 
-// All interfaces have been moved to src/types.ts
+/**
+ * Interface for recording processing options
+ */
+export interface RecordingProcessOptions {
+	appendToActiveNote: boolean;
+	onlyTranscribe: boolean;
+	saveAudioFile: boolean;
+	automaticSpeechDetection: boolean;
+	diaryEntryDate: string;
+	selectedTemplate: string;
+}
 
-// Settings have been moved to src/settings/settings.ts
-
+/**
+ * Main plugin class
+ */
 export default class VoiceAIJournalPlugin extends Plugin {
 	settings: VoiceAIJournalSettings;
 	aiProviders: AIProviders | null = null;
 	aiManager: AIManager;
 	asrManager: ASRManager;
+	recordingManager: RecordingManager;
 	templateManager: TemplateManager;
+	
+	/**
+	 * Start recording audio
+	 * @returns Promise that resolves to true if recording started successfully
+	 */
+	async startRecording(): Promise<boolean> {
+		return this.recordingManager.startRecording();
+	}
+	
+	/**
+	 * Toggle between pause and resume recording
+	 * @returns Promise that resolves to true if operation was successful
+	 */
+	async togglePauseResume(): Promise<boolean> {
+		return this.recordingManager.togglePauseResume();
+	}
+	
+	/**
+	 * Get the current recording state
+	 * @returns Current recording state
+	 */
+	getRecordingState(): RecordingState {
+		return this.recordingManager.getRecordingState();
+	}
+	
+	/**
+	 * Get the current recording time in milliseconds
+	 * @returns Current recording time in milliseconds
+	 */
+	getRecordingTime(): number {
+		return this.recordingManager.getRecordingTime();
+	}
+	
+	/**
+	 * Cancel the current recording
+	 */
+	async cancelRecording(): Promise<void> {
+		return this.recordingManager.cancelRecording();
+	}
+	
+	/**
+	 * Stop recording and process the audio
+	 * @param options Options for processing the recording
+	 */
+	async stopAndProcess(options: RecordingProcessOptions): Promise<void> {
+		try {
+			// Show processing notice
+			new Notice('Voice AI Journal: Processing recording...');
+			
+			// Stop the recording and get the audio blob
+			const audioBlob = await this.recordingManager.stopRecording();
+			
+			// Get the file extension for the audio
+			const fileExt = this.recordingManager.getRecordingFileExtension().substring(1); // Remove the dot
+			
+			// Get recordings location from settings
+			const recordingsFolder = this.settings.recordingsLocation || 'Recordings';
+			
+			// Create folder if it doesn't exist
+			await this.ensureFolderExists(recordingsFolder);
+			
+			// Generate a filename with timestamp to avoid duplicates
+			const timestamp = new Date().toISOString().replace(/[:T-]/g, '').slice(0, 14);
+			const fileName = `recording-${timestamp}.${fileExt}`;
+			const filePath = `${recordingsFolder}/${fileName}`;
+			
+			// Convert Blob to ArrayBuffer for saving to vault
+			const buffer = await audioBlob.arrayBuffer();
+			const array = new Uint8Array(buffer);
+			
+			// Save audio file if option is enabled
+			let audioFile: TFile | null = null;
+			if (options.saveAudioFile) {
+				// Save to vault
+				await this.app.vault.createBinary(filePath, array);
+				new Notice(`Audio file saved to ${filePath}`);
+				
+				// Get file reference for transcription
+				const savedFile = this.app.vault.getAbstractFileByPath(filePath);
+				if (!savedFile || !(savedFile instanceof TFile)) {
+					throw new Error('Could not find the saved audio file');
+				}
+				audioFile = savedFile;
+			}
+			
+			// Transcribe the audio
+			new Notice('Transcribing audio...');
+			let transcriptionResult;
+			
+			if (audioFile) {
+				// Transcribe from saved file
+				transcriptionResult = await this.asrManager.transcribeAudioFileFromVault(audioFile);
+			} else {
+				// Transcribe directly from blob
+				transcriptionResult = await this.asrManager.transcribeAudio(audioBlob, 'auto', fileExt);
+			}
+			
+			if (!transcriptionResult || !transcriptionResult.text) {
+				throw new Error('Transcription failed or returned empty result');
+			}
+			
+			// Only transcribe if that's all the user wants
+			if (options.onlyTranscribe) {
+				// Create a note with just the transcription
+				const date = options.diaryEntryDate ? new Date(options.diaryEntryDate) : new Date();
+				const formattedDate = date.toISOString().split('T')[0];
+				const noteName = `${formattedDate} Transcription.md`;
+				const notePath = `${this.settings.noteLocation}/${noteName}`;
+				
+				// Create the content
+				let content = `# Audio Transcription - ${formattedDate}\n\n`;
+				
+				// Add detected language info if available
+				if (transcriptionResult.detectedLanguage) {
+					content += `*Detected language: ${transcriptionResult.detectedLanguage}*\n\n`;
+				}
+				
+				// Add the transcription text
+				content += `## Transcription\n\n${transcriptionResult.text}\n\n`;
+				
+				// Add link to the audio file if it was saved
+				if (audioFile) {
+					content += `[Original Audio](${filePath})\n`;
+				}
+				
+				// Create the note
+				const noteFile = await this.app.vault.create(notePath, content);
+				
+				// Open the note
+				await this.app.workspace.getLeaf().openFile(noteFile);
+			} else {
+				// Process with AI using the template
+				// TODO: Implement AI processing with template
+				// For now, just create a note with the transcription
+				const date = options.diaryEntryDate ? new Date(options.diaryEntryDate) : new Date();
+				const formattedDate = date.toISOString().split('T')[0];
+				const noteName = `${formattedDate} Journal Entry.md`;
+				const notePath = `${this.settings.noteLocation}/${noteName}`;
+				
+				// Create the content
+				let content = `# Journal Entry - ${formattedDate}\n\n`;
+				content += `## Transcription\n\n${transcriptionResult.text}\n\n`;
+				
+				// Add link to the audio file if it was saved
+				if (audioFile) {
+					content += `[Original Audio](${filePath})\n`;
+				}
+				
+				// Create the note
+				const noteFile = await this.app.vault.create(notePath, content);
+				
+				// Open the note
+				await this.app.workspace.getLeaf().openFile(noteFile);
+			}
+			
+			new Notice('Voice AI Journal: Processing complete!');
+		} catch (error) {
+			console.error('Failed to process recording:', error);
+			new Notice(`Failed to process recording: ${error instanceof Error ? error.message : String(error)}`);
+			throw error; // Re-throw to allow caller to handle
+		}
+	}
 
+	/**
+	 * Initialize the plugin
+	 */
 	async onload() {
-		console.log('Loading Voice AI Journal plugin');
-
-		// Initialize settings
 		await this.loadSettings();
 
-		// Initialize AI Providers integration
-		initAI(this.app, this, async () => {
-			try {
-				const aiResolver = await waitForAI();
-				this.aiProviders = await aiResolver.promise;
-				console.log('AI Providers loaded', this.aiProviders?.providers || 'No providers found');
-			} catch (error) {
-				console.error('Failed to initialize AI Providers', error);
-				new Notice('Voice AI Journal: Failed to initialize AI Providers plugin. Please make sure it is installed and enabled.');
-			}
-
-			// Initialize the settings tab
-			this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
-			
-			// Initialize AI Manager with the AI Providers instance
-			this.aiManager = new AIManager(this.aiProviders, this);
-			
-			// Initialize ASR Manager
-			this.asrManager = new ASRManager(this);
-			
-			// Initialize Template Manager
-			this.templateManager = new TemplateManager();
-			
-			// Register plugin components after AI is initialized
-			this.registerPluginComponents();
+		// Initialize AI Providers
+		await initAI(this.app, this, () => {
+			console.log('AI Providers loaded');
+			// The AI provider will be set during initialization
+			// Since initAI returns void, we don't assign its result
 		});
+		await waitForAI();
+
+		// Initialize managers
+		this.aiManager = new AIManager(this.aiProviders);
+		this.asrManager = new ASRManager(this);
+		this.recordingManager = new RecordingManager(this);
+		this.templateManager = new TemplateManager();
+
+		// Register settings tab
+		this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
+		
+		// Register plugin components and commands
+		await this.registerPluginComponents();
 	}
 
-	onunload() {
-		console.log('Unloading Voice AI Journal plugin');
+	/**
+	 * Clean up when plugin is disabled
+	 */
+	onunload(): void {
+		// Nothing to unload yet
 	}
 
-	async loadSettings() {
+	/**
+	 * Load settings from disk
+	 */
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
-	async saveSettings() {
+	/**
+	 * Save settings to disk
+	 */
+	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
+	
+	/**
+	 * Get a template by ID
+	 * @param id The template ID
+	 * @returns The template or undefined if not found
+	 */
+	getTemplateById(id: string): JournalTemplate | undefined {
+		return this.settings.templates?.find(t => t.id === id);
+	}
+	
+	/**
+	 * Add a new template
+	 * @param template The template to add
+	 */
+	addTemplate(template: JournalTemplate): void {
+		if (!this.settings.templates) {
+			this.settings.templates = [];
+		}
+		this.settings.templates.push(template);
+		this.saveSettings();
+	}
+	
+	/**
+	 * Update an existing template
+	 * @param id The template ID to update
+	 * @param template The updated template
+	 */
+	updateTemplate(id: string, template: JournalTemplate): void {
+		if (!this.settings.templates) return;
+		
+		const index = this.settings.templates.findIndex(t => t.id === id);
+		if (index >= 0) {
+			this.settings.templates[index] = template;
+			this.saveSettings();
+		}
+	}
+	
+	/**
+	 * Delete a template
+	 * @param id The template ID to delete
+	 */
+	deleteTemplate(id: string): void {
+		if (!this.settings.templates) return;
+		
+		this.settings.templates = this.settings.templates.filter(t => t.id !== id);
+		this.saveSettings();
+	}
 
-	// This method loads all UI components and registers commands
-	async registerPluginComponents() {
-		// Import components dynamically to avoid circular dependencies
-		const { RecordingModal } = await import('./src/ui/RecordingModal');
+	/**
+	 * This method loads all UI components and registers commands
+	 */
+	async registerPluginComponents(): Promise<void> {
+		// Import the template manager modal
 		const { TemplateManagerModal } = await import('./src/ui/TemplateEditorModal');
 
-		// Add two separate ribbon icons instead of a dropdown menu
-		// 1. Recording icon
-		this.addRibbonIcon('microphone', 'Start voice recording', (evt: MouseEvent) => {
-			if (!this.aiProviders && this.settings.transcriptionProvider !== 'localWhisper') {
-				new Notice('Voice AI Journal: AI Providers plugin not initialized or local Whisper not configured. Please check settings.');
+		// 1. Add ribbon icon for starting recording
+		this.addRibbonIcon('microphone', 'Start Voice Recording', async (evt: MouseEvent) => {
+			// Check if we can access the microphone
+			if (!await this.recordingManager.checkMicrophoneAccess()) {
+				new Notice('Microphone access is required to use Voice AI Journal');
 				return;
 			}
-			new RecordingModal(this.app, this).open();
+			new RecordingModal(this).open();
 		});
 		
 		// 2. Upload audio file icon (desktop only)
-		// Only add this button on desktop platforms
 		if (!Platform.isMobile) {
 			this.addRibbonIcon('upload', 'Upload audio file', async (evt: MouseEvent) => {
 				if (!this.aiProviders && this.settings.transcriptionProvider !== 'localWhisper') {
-					new Notice('Voice AI Journal: AI Providers plugin not initialized or local Whisper not configured. Please check settings.');
+					new Notice('AI providers are not initialized. Please try again in a moment.');
 					return;
 				}
 				
-				// Create a temporary file input element for this specific action
+				// Create a file input element
 				const fileInput = document.createElement('input');
 				fileInput.type = 'file';
-				fileInput.multiple = false;
-				fileInput.accept = '.mp3,.wav,.ogg,.webm,.m4a,.mp4,.flac';
+				fileInput.accept = 'audio/*';
 				fileInput.style.display = 'none';
 				document.body.appendChild(fileInput);
 				
-				// Set up a one-time use listener
+				// Handle file selection
 				fileInput.addEventListener('change', async () => {
-				if (fileInput.files && fileInput.files.length > 0) {
-					const file = fileInput.files[0];
-					await this.processAudioFile(file);
-				}
-					// Clean up - remove the element after use
-					if (fileInput.parentNode) {
-						fileInput.parentNode.removeChild(fileInput);
+					if (fileInput.files && fileInput.files.length > 0) {
+						const file = fileInput.files[0];
+						await this.processAudioFile(file);
 					}
-				}, { once: true }); // Important: using { once: true } means the listener removes itself after firing
+					// Remove the input element
+					document.body.removeChild(fileInput);
+				});
 				
 				// Trigger file selection dialog
 				fileInput.click();
@@ -122,144 +345,33 @@ export default class VoiceAIJournalPlugin extends Plugin {
 		this.addCommand({
 			id: 'start-voice-recording',
 			name: 'Start Voice Recording',
-			callback: () => {
-				if (!this.aiProviders) {
-					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
+			callback: async () => {
+				// Check if we can access the microphone
+				if (!await this.recordingManager.checkMicrophoneAccess()) {
+					new Notice('Microphone access is required to use Voice AI Journal');
 					return;
 				}
-				new RecordingModal(this.app, this).open();
+				new RecordingModal(this).open();
 			}
 		});
-
+		
+		// Template editor command
 		this.addCommand({
-			id: 'manage-journal-templates',
-			name: 'Manage Journal Templates',
+			id: 'open-template-editor',
+			name: 'Open Template Editor',
 			callback: () => {
 				new TemplateManagerModal(this.app, this).open();
 			}
 		});
-
-		this.addCommand({
-			id: 'transcribe-audio-file',
-			name: 'Transcribe Audio File',
-			checkCallback: (checking: boolean) => {
-				// Only enable this command if there's an active file that is an audio file
-				const activeFile = this.app.workspace.getActiveFile();
-				const isAudioFile = activeFile?.extension && ['mp3', 'wav', 'ogg', 'webm', 'm4a'].includes(activeFile.extension);
-				
-				if (checking) {
-					return !!isAudioFile && !!this.aiProviders;
-				}
-
-				if (!this.aiProviders) {
-					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
-					return false;
-				}
-
-				if (isAudioFile && activeFile) {
-					new Notice(`Transcription of audio files will be implemented in a future version`);
-					return true;
-				}
-				return false;
-			}
-		});
-
-		this.addCommand({
-			id: 'generate-mermaid-diagram',
-			name: 'Generate Mermaid Diagram from Journal',
-			editorCallback: async (editor: Editor, view: MarkdownView) => {
-				if (!this.aiProviders) {
-					new Notice('Voice AI Journal: AI Providers plugin not initialized. Please make sure it is installed and enabled.');
-					return;
-				}
-
-				// Get selected text or entire document
-				const text = editor.getSelection() || editor.getValue();
-				if (!text) {
-					new Notice('No text selected or document is empty');
-					return;
-				}
-
-				new Notice('Generating Mermaid diagram...');
-				
-				// Import AIManager to avoid circular dependencies
-				const { AIManager } = await import('./src/ai/AIManager');
-				const aiManager = new AIManager(this.aiProviders);
-				
-				try {
-					const mermaidCode = await aiManager.generateMermaidChart(text, this.settings.aiProviders?.analysis);
-					
-					if (!mermaidCode) {
-						new Notice('Failed to generate Mermaid diagram');
-						return;
-					}
-
-					// Insert the mermaid code block at cursor position
-					const mermaidBlock = '```mermaid\n' + mermaidCode + '\n```';
-					const cursorPos = editor.getCursor();
-					
-					// If there's a selection, replace it, otherwise insert at cursor
-					if (editor.getSelection()) {
-						editor.replaceSelection(mermaidBlock);
-					} else {
-						editor.replaceRange('\n\n' + mermaidBlock + '\n\n', cursorPos);
-					}
-					
-					new Notice('Mermaid diagram generated successfully');
-				} catch (error: unknown) {
-					console.error('Error generating Mermaid diagram:', error);
-					new Notice(`Failed to generate Mermaid diagram: ${error instanceof Error ? error.message : String(error)}`);
-				}
-			}
-		});
-	}
-
-	// Method to get template by id
-	getTemplateById(id: string): JournalTemplate | undefined {
-		return this.settings.templates.find(template => template.id === id);
-	}
-
-	// Method to add a new template
-	addTemplate(template: JournalTemplate) {
-		this.settings.templates.push(template);
-		this.saveSettings();
-	}
-
-	// Method to update a template
-	updateTemplate(templateId: string, updatedTemplate: Partial<JournalTemplate>) {
-		const templateIndex = this.settings.templates.findIndex(t => t.id === templateId);
-		if (templateIndex >= 0) {
-			this.settings.templates[templateIndex] = {
-				...this.settings.templates[templateIndex],
-				...updatedTemplate
-			};
-			this.saveSettings();
-			return true;
-		}
-		return false;
-	}
-
-	// Method to delete a template
-	deleteTemplate(templateId: string) {
-		const initialLength = this.settings.templates.length;
-		this.settings.templates = this.settings.templates.filter(t => t.id !== templateId);
 		
-		if (this.settings.templates.length < initialLength) {
-			// If the deleted template was the default, set a new default
-			if (this.settings.defaultTemplate === templateId && this.settings.templates.length > 0) {
-				this.settings.defaultTemplate = this.settings.templates[0].id;
-			}
-			this.saveSettings();
-			return true;
-		}
-		return false;
+		// Add more commands as needed
 	}
-	
+
 	/**
-	 * Processes an uploaded audio file
+	 * Process an uploaded audio file
 	 * @param file The audio file from the file upload dialog
 	 */
-	private async processAudioFile(file: File) {
+	private async processAudioFile(file: File): Promise<void> {
 		try {
 			new Notice(`Processing audio file: ${file.name}`);
 			
@@ -321,10 +433,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				content += `[Original Audio](${filePath})\n`;
 				
 				// Create the note
-				const file = await this.app.vault.create(notePath, content);
+				const noteFile = await this.app.vault.create(notePath, content);
 				
 				// Open the note
-				await this.app.workspace.getLeaf().openFile(file);
+				await this.app.workspace.getLeaf().openFile(noteFile);
 				
 				new Notice('Audio transcription complete!');
 			} catch (transcriptionError) {
@@ -362,6 +474,3 @@ export default class VoiceAIJournalPlugin extends Plugin {
 		}
 	}
 }
-
-// Settings tab class has been moved to src/settings/SettingsTab.ts
-
