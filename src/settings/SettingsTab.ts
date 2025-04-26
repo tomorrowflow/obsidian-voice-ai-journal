@@ -1,117 +1,141 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
-import type { AIProvider } from '../types';
+import type { AIProvider, JournalTemplate } from '../types';
 
 /**
- * Settings tab for Voice AI Journal plugin
+ * Settings tab for Voice AI Journal plugin with tabbed interface
  */
 export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 	plugin: VoiceAIJournalPlugin;
+	private activeTab: 'general' | 'templates' = 'general';
+	private selectedTemplateId: string | null = null;
 
 	constructor(app: App, plugin: VoiceAIJournalPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
-	/**
-	 * Load providers from the AI Providers plugin
-	 * This is called before displaying settings
-	 */
-	/**
-	 * Get all folders in the vault using the Obsidian API
-	 */
-	private getFolders(): string[] {
-		const folders: string[] = [];
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
 		
-		// Function to recursively process all folders
-		const processFolder = (folderPath: string) => {
-			// Skip root folder as it's added separately
-			if (folderPath !== '/') {
-				folders.push(folderPath);
-			}
-			
-			// Get all files and folders in this folder
-			const abstractFiles = this.app.vault.getRoot().children;
-			const folderChildren = this.getFolderChildren(abstractFiles, folderPath);
-			
-			// Process subfolders recursively
-			folderChildren.forEach(child => {
-				if (child.children) { // If it has children, it's a folder
-					processFolder(child.path);
-				}
-			});
+		// Add CSS class for styling
+		containerEl.addClass('voice-journal-settings');
+		
+		// Create tab header
+		const tabHeaderEl = containerEl.createEl('div', { cls: 'voice-journal-tab-header' });
+		
+		// Create tab buttons
+		const generalTabBtn = tabHeaderEl.createEl('button', { 
+			text: 'General', 
+			cls: this.activeTab === 'general' ? 'voice-journal-tab-active' : ''
+		});
+		const templatesTabBtn = tabHeaderEl.createEl('button', { 
+			text: 'Templates', 
+			cls: this.activeTab === 'templates' ? 'voice-journal-tab-active' : ''
+		});
+		
+		// Add click handlers
+		generalTabBtn.onclick = () => {
+			this.activeTab = 'general';
+			this.display();
 		};
 		
-		// Process root folder
-		processFolder('/');
+		templatesTabBtn.onclick = () => {
+			this.activeTab = 'templates';
+			this.display();
+		};
 		
-		// Sort folders alphabetically
-		folders.sort();
+		// Create content container
+		const contentEl = containerEl.createEl('div', { cls: 'voice-journal-tab-content' });
 		
-		// Log the found folders for debugging
-		console.log('Found folders:', folders);
-		
-		return folders;
-	}
-	
-	/**
-	 * Get children of a specific folder from a list of abstract files
-	 */
-	private getFolderChildren(abstractFiles: { path: string; children?: any[] }[], folderPath: string): { path: string; children?: any[] }[] {
-		if (folderPath === '/') {
-			// If root folder, return all top-level folders
-			return abstractFiles.filter(file => file.children);
+		// Show active tab content
+		if (this.activeTab === 'general') {
+			this.renderGeneralTab(contentEl);
+		} else {
+			this.renderTemplatesTab(contentEl);
 		}
 		
-		// Find the folder in the abstract files
-		for (const file of abstractFiles) {
-			if (file.path === folderPath && file.children) {
-				return file.children;
-			} else if (file.children) {
-				// Recursively search in subfolders
-				const result = this.getFolderChildren(file.children, folderPath);
-				if (result.length > 0) {
-					return result;
-				}
-			}
-		}
-		
-		return [];
+		// Add CSS to style the tabs
+		this.addStyles();
 	}
 
 	/**
-	 * Load providers from the AI Providers plugin
-	 * This is called before displaying settings
+	 * Render the General settings tab
 	 */
-	private async loadProviders(): Promise<void> {
-		// No-op if AI Providers not initialized
-		if (!this.plugin.aiProviders) {
-			console.log('AI Providers not available');
-			return;
-		}
-
-		// Ensure providers exist
-		if (!this.plugin.aiProviders.providers || this.plugin.aiProviders.providers.length === 0) {
-			console.log('No AI providers found');
-			return;
-		}
-
-		// This is just to make sure providers are loaded
-		console.log(`Found ${this.plugin.aiProviders.providers.length} AI providers`);
-	}
-
-	async display(): Promise<void> {
-		const {containerEl} = this;
-
+	private async renderGeneralTab(containerEl: HTMLElement): Promise<void> {
 		containerEl.empty();
-		containerEl.createEl('h2', {text: 'Voice AI Journal Settings'});
+		containerEl.createEl('h2', { text: 'Voice AI Journal Settings' });
 
-		// Load AI providers before displaying settings
+		// Load AI Providers
 		await this.loadProviders();
-		
+
+		// Audio Settings Section first
+		containerEl.createEl('h3', { text: 'Audio & Recording Settings' });
+
+		// Audio quality selection
+		new Setting(containerEl)
+			.setName('Audio Quality')
+			.setDesc('Higher quality records more data but creates larger files')
+			.addDropdown(dropdown => {
+				dropdown.addOption('low', 'Low (8kHz, mono)')
+				dropdown.addOption('medium', 'Medium (16kHz, mono)')
+				dropdown.addOption('high', 'High (44.1kHz, stereo)')
+				
+				dropdown.setValue(this.plugin.settings.audioQuality);
+				
+				dropdown.onChange(async (value: 'low' | 'medium' | 'high') => {
+					this.plugin.settings.audioQuality = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		// Automatic speech detection toggle
+		new Setting(containerEl)
+			.setName('Automatic Speech Detection')
+			.setDesc('Automatically start/stop recording based on speech detection')
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.automaticSpeechDetection);
+				
+				toggle.onChange(async (value: boolean) => {
+					this.plugin.settings.automaticSpeechDetection = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		// Microphone selection
+		new Setting(containerEl)
+			.setName('Microphone')
+			.setDesc('Select which microphone to use for recording')
+			.addDropdown(async dropdown => {
+				// Add auto option
+				dropdown.addOption('', 'System Default');
+				
+				try {
+					// Get available devices if browser supports it
+					if (navigator && navigator.mediaDevices) {
+						const devices = await navigator.mediaDevices.enumerateDevices();
+						const audioInputs = devices.filter(device => device.kind === 'audioinput');
+						
+						audioInputs.forEach(device => {
+							dropdown.addOption(device.deviceId, device.label || `Microphone (${device.deviceId.slice(0, 5)}...)`);
+						});
+					}
+				} catch (error) {
+					console.error('Error listing audio devices:', error);
+				}
+				
+				dropdown.setValue(this.plugin.settings.selectedMicrophoneId || '');
+				
+				dropdown.onChange(async (value: string) => {
+					this.plugin.settings.selectedMicrophoneId = value || undefined;
+					await this.plugin.saveSettings();
+				});
+			});
+
 		// AI Provider Settings Section
-		containerEl.createEl('h3', {text: 'AI Provider Settings'});
-		
+		containerEl.createEl('h3', { text: 'Transcription & AI Settings' });
+
 		if (!this.plugin.aiProviders) {
 			new Setting(containerEl)
 				.setName('AI Providers Plugin')
@@ -174,13 +198,13 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 						// Set the selected value if exists
 						dropdown.setValue(this.plugin.settings.aiProviders.transcription || '');
 						
-						dropdown.onChange(async (value) => {
-							this.plugin.settings.aiProviders.transcription = value || null;
+						dropdown.onChange(async (value: string) => {
+							this.plugin.settings.aiProviders.transcription = value;
 							await this.plugin.saveSettings();
 						});
 					});
 			}
-			
+
 			// Model selection for analysis
 			new Setting(containerEl)
 				.setName('Analysis Provider')
@@ -199,14 +223,63 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 					// Set the selected value if exists
 					dropdown.setValue(this.plugin.settings.aiProviders.analysis || '');
 					
-					dropdown.onChange(async (value) => {
+					dropdown.onChange(async (value: string) => {
 						this.plugin.settings.aiProviders.analysis = value || null;
 						await this.plugin.saveSettings();
 					});
 				});
-				
-			// Providers will automatically load when settings tab is opened
+
+			// Mermaid fixer provider for diagrams
+			new Setting(containerEl)
+				.setName('Mermaid Fixer Provider')
+				.setDesc('Select the AI provider to use for fixing Mermaid diagrams (optional)')
+				.addDropdown(dropdown => {
+					// Add default empty option
+					dropdown.addOption('', 'None/Disabled');
+					
+					// Add all available providers
+					if (this.plugin.aiProviders && this.plugin.aiProviders.providers) {
+						this.plugin.aiProviders.providers.forEach((provider: AIProvider) => {
+							dropdown.addOption(provider.id, `${provider.name} (${provider.model})`);
+						});
+					}
+					
+					// Set the selected value if exists
+					dropdown.setValue(this.plugin.settings.aiProviders.mermaidFixer || '');
+					
+					dropdown.onChange(async (value: string) => {
+						this.plugin.settings.aiProviders.mermaidFixer = value || null;
+						await this.plugin.saveSettings();
+					});
+				});
 		}
+
+		// Transcription language selection
+		new Setting(containerEl)
+			.setName('Transcription Language')
+			.setDesc('Language for speech recognition (auto will attempt to detect language)')
+			.addDropdown(dropdown => {
+				// Add common languages
+				dropdown.addOption('auto', 'Auto detect')
+				dropdown.addOption('en', 'English')
+				dropdown.addOption('fr', 'French')
+				dropdown.addOption('de', 'German')
+				dropdown.addOption('es', 'Spanish')
+				dropdown.addOption('it', 'Italian')
+				dropdown.addOption('pt', 'Portuguese')
+				dropdown.addOption('nl', 'Dutch')
+				dropdown.addOption('ja', 'Japanese')
+				dropdown.addOption('zh', 'Chinese')
+				dropdown.addOption('ko', 'Korean')
+				dropdown.addOption('ru', 'Russian')
+				
+				dropdown.setValue(this.plugin.settings.transcriptionLanguage);
+				
+				dropdown.onChange(async (value: string) => {
+					this.plugin.settings.transcriptionLanguage = value;
+					await this.plugin.saveSettings();
+				});
+			});
 
 		// Note Location Settings
 		containerEl.createEl('h3', {text: 'Journal Notes Settings'});
@@ -223,7 +296,7 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				console.log('Populating dropdown with folders:', folders.length);
 				
 				// Add all found folders
-				folders.forEach(folder => {
+				folders.forEach((folder: string) => {
 					dropdown.addOption(folder, folder);
 				});
 				
@@ -251,12 +324,12 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				const folders = this.getFolders();
 				
 				// Add all found folders
-				folders.forEach(folder => {
+				folders.forEach((folder: string) => {
 					dropdown.addOption(folder, folder);
 				});
 				
 				// Set current value
-				const currentValue = this.plugin.settings.recordingsLocation || '/Recordings';
+				const currentValue = this.plugin.settings.recordingsLocation || '/';
 				dropdown.setValue(currentValue);
 				
 				// Handle change
@@ -266,180 +339,334 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		// Recording Settings
-		containerEl.createEl('h3', {text: 'Recording Settings'});
-
+		// Note naming format
 		new Setting(containerEl)
-			.setName('Audio Quality')
-			.setDesc('Higher quality results in larger files but better transcription')
-			.addDropdown(dropdown => dropdown
-				.addOption('low', 'Low')
-				.addOption('medium', 'Medium')
-				.addOption('high', 'High')
-				.setValue(this.plugin.settings.audioQuality)
-				.onChange(async (value: 'low' | 'medium' | 'high') => {
-					this.plugin.settings.audioQuality = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Automatic Speech Detection')
-			.setDesc('Automatically pause recording when no speech is detected')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.automaticSpeechDetection)
-				.onChange(async (value) => {
-					this.plugin.settings.automaticSpeechDetection = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName('Note Naming Format')
+			.setDesc('Format for naming new journal notes. Use {{date:FORMAT}} for date variables.')
+			.addText(text => {
+				text.setValue(this.plugin.settings.noteNamingFormat);
+				text.setPlaceholder('Journal/{{date:YYYY/MM/YYYY-MM-DD}}');
 				
-		new Setting(containerEl)
-			.setName('Transcription Language')
-			.setDesc('Select the language for speech recognition (default: auto-detect)')
-			.addDropdown(dropdown => {
-				// Add auto-detect option
-				dropdown.addOption('auto', 'Auto-detect language');
-				
-				// Add all Whisper supported languages
-				const languages = [
-					{ code: 'en', name: 'English' },
-					{ code: 'zh', name: 'Chinese' },
-					{ code: 'de', name: 'German' },
-					{ code: 'es', name: 'Spanish' },
-					{ code: 'ru', name: 'Russian' },
-					{ code: 'ko', name: 'Korean' },
-					{ code: 'fr', name: 'French' },
-					{ code: 'ja', name: 'Japanese' },
-					{ code: 'pt', name: 'Portuguese' },
-					{ code: 'tr', name: 'Turkish' },
-					{ code: 'pl', name: 'Polish' },
-					{ code: 'ca', name: 'Catalan' },
-					{ code: 'nl', name: 'Dutch' },
-					{ code: 'ar', name: 'Arabic' },
-					{ code: 'sv', name: 'Swedish' },
-					{ code: 'it', name: 'Italian' },
-					{ code: 'id', name: 'Indonesian' },
-					{ code: 'hi', name: 'Hindi' },
-					{ code: 'fi', name: 'Finnish' },
-					{ code: 'vi', name: 'Vietnamese' },
-					{ code: 'he', name: 'Hebrew' },
-					{ code: 'uk', name: 'Ukrainian' },
-					{ code: 'el', name: 'Greek' },
-					{ code: 'ms', name: 'Malay' },
-					{ code: 'cs', name: 'Czech' },
-					{ code: 'ro', name: 'Romanian' },
-					{ code: 'da', name: 'Danish' },
-					{ code: 'hu', name: 'Hungarian' },
-					{ code: 'ta', name: 'Tamil' },
-					{ code: 'no', name: 'Norwegian' },
-					{ code: 'th', name: 'Thai' },
-					{ code: 'ur', name: 'Urdu' },
-					{ code: 'hr', name: 'Croatian' },
-					{ code: 'bg', name: 'Bulgarian' },
-					{ code: 'lt', name: 'Lithuanian' },
-					{ code: 'la', name: 'Latin' },
-					{ code: 'mi', name: 'Maori' },
-					{ code: 'ml', name: 'Malayalam' },
-					{ code: 'cy', name: 'Welsh' },
-					{ code: 'sk', name: 'Slovak' },
-					{ code: 'te', name: 'Telugu' },
-					{ code: 'fa', name: 'Persian' },
-					{ code: 'lv', name: 'Latvian' },
-					{ code: 'bn', name: 'Bengali' },
-					{ code: 'sr', name: 'Serbian' },
-					{ code: 'az', name: 'Azerbaijani' },
-					{ code: 'sl', name: 'Slovenian' },
-					{ code: 'kn', name: 'Kannada' },
-					{ code: 'et', name: 'Estonian' },
-					{ code: 'mk', name: 'Macedonian' },
-					{ code: 'br', name: 'Breton' },
-					{ code: 'eu', name: 'Basque' },
-					{ code: 'is', name: 'Icelandic' },
-					{ code: 'hy', name: 'Armenian' },
-					{ code: 'ne', name: 'Nepali' },
-					{ code: 'mn', name: 'Mongolian' },
-					{ code: 'bs', name: 'Bosnian' },
-					{ code: 'kk', name: 'Kazakh' },
-					{ code: 'sq', name: 'Albanian' },
-					{ code: 'sw', name: 'Swahili' },
-					{ code: 'gl', name: 'Galician' },
-					{ code: 'mr', name: 'Marathi' },
-					{ code: 'pa', name: 'Punjabi' },
-					{ code: 'si', name: 'Sinhala' },
-					{ code: 'km', name: 'Khmer' },
-					{ code: 'sn', name: 'Shona' },
-					{ code: 'yo', name: 'Yoruba' },
-					{ code: 'so', name: 'Somali' },
-					{ code: 'af', name: 'Afrikaans' },
-					{ code: 'oc', name: 'Occitan' },
-					{ code: 'ka', name: 'Georgian' },
-					{ code: 'be', name: 'Belarusian' },
-					{ code: 'tg', name: 'Tajik' },
-					{ code: 'sd', name: 'Sindhi' },
-					{ code: 'gu', name: 'Gujarati' },
-					{ code: 'am', name: 'Amharic' },
-					{ code: 'yi', name: 'Yiddish' },
-					{ code: 'lo', name: 'Lao' },
-					{ code: 'uz', name: 'Uzbek' },
-					{ code: 'fo', name: 'Faroese' },
-					{ code: 'ht', name: 'Haitian Creole' },
-					{ code: 'ps', name: 'Pashto' },
-					{ code: 'tk', name: 'Turkmen' },
-					{ code: 'nn', name: 'Nynorsk' },
-					{ code: 'mt', name: 'Maltese' },
-					{ code: 'sa', name: 'Sanskrit' },
-					{ code: 'lb', name: 'Luxembourgish' },
-					{ code: 'my', name: 'Myanmar' },
-					{ code: 'bo', name: 'Tibetan' },
-					{ code: 'tl', name: 'Tagalog' },
-					{ code: 'mg', name: 'Malagasy' },
-					{ code: 'as', name: 'Assamese' },
-					{ code: 'tt', name: 'Tatar' },
-					{ code: 'haw', name: 'Hawaiian' },
-					{ code: 'ln', name: 'Lingala' },
-					{ code: 'ha', name: 'Hausa' },
-					{ code: 'ba', name: 'Bashkir' },
-					{ code: 'jw', name: 'Javanese' },
-					{ code: 'su', name: 'Sundanese' },
-				];
-				
-				// Sort languages alphabetically by name
-				languages.sort((a, b) => a.name.localeCompare(b.name));
-				
-				// Add all languages to the dropdown
-				languages.forEach(lang => {
-					dropdown.addOption(lang.code, lang.name);
-				});
-				
-				// Set the current value
-				dropdown.setValue(this.plugin.settings.transcriptionLanguage);
-				
-				// Save changes when selection changes
-				dropdown.onChange(async (value) => {
-					this.plugin.settings.transcriptionLanguage = value;
+				text.onChange(async (value) => {
+					this.plugin.settings.noteNamingFormat = value;
 					await this.plugin.saveSettings();
 				});
 			});
 
+		// Append to existing note toggle
+		new Setting(containerEl)
+			.setName('Append to Existing Note')
+			.setDesc('If a note with the same name exists, append the new entry instead of creating a new file')
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.appendToExistingNote);
+				
+				toggle.onChange(async (value) => {
+					this.plugin.settings.appendToExistingNote = value;
+					await this.plugin.saveSettings();
+				});
+			});
+	}
 
-		// Template Management (simplified, we'll enhance this with a separate UI component later)
-		containerEl.createEl('h3', {text: 'Templates'});
+	/**
+	 * Render the Templates tab
+	 */
+	private renderTemplatesTab(containerEl: HTMLElement): void {
+		containerEl.empty();
+		containerEl.createEl('h2', { text: 'Journal Templates' });
 
+		// Ensure templates array exists
+		const templates = Array.isArray(this.plugin.settings.templates) ? this.plugin.settings.templates : [];
+		
+		// Get template IDs and names
+		const templateIds = templates.map((t: JournalTemplate) => t.id);
+		const templateNames = templates.map((t: JournalTemplate) => t.name);
+		
+		// Set initial selected template
+		if (!this.selectedTemplateId || !templateIds.includes(this.selectedTemplateId)) {
+			this.selectedTemplateId = templateIds.length > 0 ? templateIds[0] : null;
+		}
+
+		// Default template setting
 		new Setting(containerEl)
 			.setName('Default Template')
-			.setDesc('Choose the default template for new journal entries')
+			.setDesc('The template that will be selected by default when creating a new entry')
 			.addDropdown(dropdown => {
-				// Add all templates to the dropdown
-				this.plugin.settings.templates.forEach(template => {
-					dropdown.addOption(template.id, template.name);
-				});
+				// Add template options
+				if (templates.length === 0) {
+					dropdown.addOption('', 'No templates available');
+				} else {
+					templateIds.forEach((id, index) => {
+						dropdown.addOption(id, templateNames[index]);
+					});
+				}
 				
-				dropdown.setValue(this.plugin.settings.defaultTemplate)
-				.onChange(async (value) => {
+				// Set current value
+				dropdown.setValue(this.plugin.settings.defaultTemplate || '');
+				
+				// Handle change
+				dropdown.onChange(async (value) => {
 					this.plugin.settings.defaultTemplate = value;
 					await this.plugin.saveSettings();
 				});
 			});
 
-			// We'll add template editing UI here in future iterations
+		// Template selector
+		if (templates.length > 0) {
+			new Setting(containerEl)
+				.setName('Edit Template')
+				.setDesc('Select a template to edit')
+				.addDropdown(dropdown => {
+					templateIds.forEach((id, index) => {
+						dropdown.addOption(id, templateNames[index]);
+					});
+					
+					dropdown.setValue(this.selectedTemplateId || '');
+					
+					dropdown.onChange((value) => {
+						this.selectedTemplateId = value;
+						this.renderTemplatesTab(containerEl); // Refresh to show selected template
+					});
+				});
+		} else {
+			containerEl.createEl('p', { text: 'No templates found. Create your first template below.' });
+		}
+		
+		// Template editor
+		if (this.selectedTemplateId) {
+			const template = templates.find((t: JournalTemplate) => t.id === this.selectedTemplateId);
+			
+			if (template) {
+				const templateEl = containerEl.createEl('div', { cls: 'voice-journal-template-editor' });
+				
+				// Template name
+				templateEl.createEl('h3', { text: template.name });
+				
+				// Template content editor
+				new Setting(templateEl)
+					.setName('Template Name')
+					.addText(text => {
+						text.setValue(template.name);
+						text.onChange(async (value) => {
+							template.name = value;
+							await this.plugin.updateTemplate(template.id, template);
+						});
+					});
+				
+				new Setting(templateEl)
+					.setName('Description')
+					.addText(text => {
+						text.setValue(template.description);
+						text.onChange(async (value) => {
+							template.description = value;
+							await this.plugin.updateTemplate(template.id, template);
+						});
+					});
+				
+				new Setting(templateEl)
+					.setName('Content')
+					.setDesc('The template content. Use {{transcription}} to include the transcribed text.')
+					.addTextArea(textarea => {
+						textarea.setValue(template.template);
+						textarea.setPlaceholder('# Journal Entry\n\n{{transcription}}');
+						textarea.inputEl.rows = 10;
+						textarea.inputEl.cols = 50;
+						
+						textarea.onChange(async (value) => {
+							template.template = value;
+							await this.plugin.updateTemplate(template.id, template);
+						});
+					});
+					
+				new Setting(templateEl)
+					.setName('Prompt')
+					.setDesc('Optional AI prompt to use for analysis.')
+					.addTextArea(textarea => {
+						textarea.setValue(template.prompt);
+						textarea.setPlaceholder('Analyze this journal entry and...');
+						textarea.inputEl.rows = 4;
+						
+						textarea.onChange(async (value) => {
+							template.prompt = value;
+							await this.plugin.updateTemplate(template.id, template);
+						});
+					});
+				
+				// Delete button
+				new Setting(templateEl)
+					.addButton(button => {
+						button.setButtonText('Delete Template')
+							.setWarning()
+							.onClick(async () => {
+								if (confirm(`Are you sure you want to delete the template "${template.name}"?`)) {
+									await this.plugin.deleteTemplate(template.id);
+									this.selectedTemplateId = null;
+									this.renderTemplatesTab(containerEl);
+								}
+							});
+					});
+			}
+		}
+
+		// Add new template button
+		const newTemplateContainer = containerEl.createEl('div', { cls: 'voice-journal-new-template' });
+		
+		new Setting(newTemplateContainer)
+			.setName('Create New Template')
+			.setDesc('Add a new journal template')
+			.addButton(button => {
+				button.setButtonText('Add Template')
+					.setCta()
+					.onClick(async () => {
+						// Create a new template with default values
+						const newTemplate: JournalTemplate = {
+							id: `template-${Date.now()}`,
+							name: 'New Template',
+							description: 'A new journal template',
+							template: '# Journal Entry\n\n{{transcription}}\n\n## Thoughts\n\n',
+							prompt: ''
+						};
+						
+						await this.plugin.addTemplate(newTemplate);
+						this.selectedTemplateId = newTemplate.id;
+						this.renderTemplatesTab(containerEl);
+					});
+			});
+	}
+
+	/**
+	 * Add CSS styles for the tabbed interface
+	 */
+	private addStyles(): void {
+		// Remove previous styles
+		const prevStyle = document.getElementById('voice-journal-settings-styles');
+		if (prevStyle) {
+			prevStyle.remove();
+		}
+
+		// Create style element
+		const styleEl = document.createElement('style');
+		styleEl.id = 'voice-journal-settings-styles';
+		
+		// Add styles for tabs
+		styleEl.textContent = `
+			.voice-journal-tab-header {
+				display: flex;
+				border-bottom: 1px solid var(--background-modifier-border);
+				margin-bottom: 20px;
+			}
+			
+			.voice-journal-tab-header button {
+				background: none;
+				border: none;
+				padding: 8px 16px;
+				font-size: 14px;
+				cursor: pointer;
+				position: relative;
+				border-bottom: 2px solid transparent;
+				transition: all 0.2s ease;
+			}
+			
+			.voice-journal-tab-header button:hover {
+				color: var(--text-accent);
+			}
+			
+			.voice-journal-tab-header button.voice-journal-tab-active {
+				color: var(--text-accent);
+				border-bottom: 2px solid var(--text-accent);
+			}
+			
+			.voice-journal-template-editor {
+				margin-top: 20px;
+				padding: 20px;
+				border: 1px solid var(--background-modifier-border);
+				border-radius: 5px;
+			}
+			
+			.voice-journal-new-template {
+				margin-top: 30px;
+			}
+		`;
+		
+		// Add to document
+		document.head.appendChild(styleEl);
+	}
+
+	/**
+	 * Get all folders in the vault using the Obsidian API
+	 */
+	private getFolders(): string[] {
+		const folders: string[] = [];
+		
+		// Function to recursively process all folders
+		const processFolder = (folderPath: string) => {
+			// Skip root folder as it's added separately
+			if (folderPath !== '/') {
+				folders.push(folderPath);
+			}
+			
+			// Get all files and folders in this folder
+			const abstractFiles = this.app.vault.getRoot().children;
+			const folderChildren = this.getFolderChildren(abstractFiles, folderPath);
+			
+			// Process subfolders recursively
+			folderChildren.forEach(child => {
+				if (child.children) { // If it has children, it's a folder
+					processFolder(child.path);
+				}
+			});
+		};
+		
+		// Process root folder
+		processFolder('/');
+		
+		// Sort folders alphabetically
+		folders.sort();
+		
+		return folders;
+	}
+	
+	/**
+	 * Get children of a specific folder from a list of abstract files
+	 */
+	private getFolderChildren(abstractFiles: { path: string; children?: any[] }[], folderPath: string): { path: string; children?: any[] }[] {
+		if (folderPath === '/') {
+			// If root folder, return all top-level folders
+			return abstractFiles.filter(file => file.children);
+		}
+		
+		// Find the folder in the abstract files
+		for (const file of abstractFiles) {
+			if (file.path === folderPath && file.children) {
+				return file.children;
+			} else if (file.children) {
+				// Recursively search in subfolders
+				const result = this.getFolderChildren(file.children, folderPath);
+				if (result.length > 0) {
+					return result;
+				}
+			}
+		}
+		
+		return [];
+	}
+
+	/**
+	 * Load providers from the AI Providers plugin
+	 */
+	private async loadProviders(): Promise<void> {
+		// No-op if AI Providers not initialized
+		if (!this.plugin.aiProviders) {
+			console.log('AI Providers not available');
+			return;
+		}
+
+		// Ensure providers exist
+		if (!this.plugin.aiProviders.providers || this.plugin.aiProviders.providers.length === 0) {
+			console.log('No AI providers found');
+			return;
+		}
+
+		// This is just to make sure providers are loaded
+		console.log(`Found ${this.plugin.aiProviders.providers.length} AI providers`);
 	}
 }

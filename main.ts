@@ -205,25 +205,29 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		// Initialize AI Providers
-		await initAI(this.app, this, () => {
-			console.log('AI Providers loaded');
-			// The AI provider will be set during initialization
-			// Since initAI returns void, we don't assign its result
+		// Initialize AI Providers with proper configuration
+		initAI(this.app, this, async () => {
+			try {
+				const aiResolver = await waitForAI();
+				this.aiProviders = await aiResolver.promise;
+				console.log('AI Providers loaded', this.aiProviders?.providers?.length || 'No providers found');
+			} catch (error) {
+				console.error('Failed to initialize AI Providers', error);
+				new Notice('Voice AI Journal: Failed to initialize AI Providers plugin. Please make sure it is installed and enabled.');
+			}
+
+			// Initialize managers after AI is loaded
+			this.aiManager = new AIManager(this.aiProviders, this);
+			this.asrManager = new ASRManager(this);
+			this.recordingManager = new RecordingManager(this);
+			this.templateManager = new TemplateManager();
+			
+			// Register settings tab
+			this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
+			
+			// Register plugin components and commands
+			await this.registerPluginComponents();
 		});
-		await waitForAI();
-
-		// Initialize managers
-		this.aiManager = new AIManager(this.aiProviders);
-		this.asrManager = new ASRManager(this);
-		this.recordingManager = new RecordingManager(this);
-		this.templateManager = new TemplateManager();
-
-		// Register settings tab
-		this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
-		
-		// Register plugin components and commands
-		await this.registerPluginComponents();
 	}
 
 	/**
