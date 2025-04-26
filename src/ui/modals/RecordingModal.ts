@@ -110,12 +110,7 @@ export class RecordingModal extends Modal {
         this.resetButton.style.display = 'none';
         this.resetButton.addEventListener('click', () => this.handleReset());
         
-        // Display microphone information
-        const micInfo = container.createDiv({ cls: 'voice-ai-journal-mic-info' });
-        const selectedMic = this.plugin.settings.selectedMicrophoneId 
-            ? 'Selected Microphone'
-            : 'Default Microphone';
-        micInfo.setText(`Microphone: ${selectedMic}`);
+        // No microphone info at the top - moved to settings section
         
         // Add separator
         container.createEl('hr');
@@ -191,63 +186,50 @@ export class RecordingModal extends Modal {
                 return text;
             });
         
-        // Active template
-        const templateContainer = optionsContainer.createDiv({ cls: 'voice-ai-journal-template-container' });
-        templateContainer.createEl('h4', { text: 'Active template' });
+        // Template section removed as requested
         
-        // Template dropdown
-        new Setting(templateContainer)
-            .addDropdown(dropdown => {
-                // Add available templates
-                const templates = this.plugin.settings.templates || {};
-                const templateNames = Object.keys(templates);
-                
-                // Add default option if no templates available
-                if (templateNames.length === 0) {
-                    dropdown.addOption('default', 'Default Template');
-                }
-                
-                // Add all available templates
-                templateNames.forEach(name => {
-                    dropdown.addOption(name, name);
-                });
-                
-                // Set current value and handle changes
-                dropdown.setValue(this.options.selectedTemplate)
-                    .onChange(value => {
-                        this.options.selectedTemplate = value;
-                    });
-            });
-        
-        // Microphone selection
+        // Microphone selection - with proper device enumeration
         new Setting(container)
             .setName('Microphone')
             .setDesc('Select microphone to use for recording')
-            .addDropdown(dropdown => {
+            .addDropdown(async (dropdown) => {
+                // Add default option
                 dropdown.addOption('default', 'Default Microphone');
-                // Add option for the selected microphone if it exists
-                if (this.plugin.settings.selectedMicrophoneId) {
-                    dropdown.addOption('selected', 'Selected Microphone');
+                
+                try {
+                    // Get all available audio input devices
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
+                    
+                    // Add each available microphone to the dropdown
+                    audioInputDevices.forEach(device => {
+                        if (device.deviceId && device.label) {
+                            dropdown.addOption(device.deviceId, device.label);
+                        }
+                    });
+                    
+                    // Set the current value to the selected microphone or default
+                    const currentValue = this.plugin.settings.selectedMicrophoneId || 'default';
+                    dropdown.setValue(currentValue);
+                    
+                    // Handle microphone selection
+                    dropdown.onChange(value => {
+                        if (value !== 'default') {
+                            this.plugin.settings.selectedMicrophoneId = value;
+                            this.plugin.saveSettings();
+                        } else {
+                            this.plugin.settings.selectedMicrophoneId = '';
+                            this.plugin.saveSettings();
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error enumerating audio devices:', error);
+                    new Notice('Failed to get available microphones. Using default.');
+                    dropdown.setValue('default');
                 }
-                dropdown.setValue('default');
-                dropdown.onChange(value => {
-                    // This will be handled in the main plugin, just a UI placeholder
-                });
             });
         
-        // Language options
-        const languageContainer = container.createDiv({ cls: 'voice-ai-journal-language-options' });
-        const languageButton = languageContainer.createEl('button', { text: 'Language options', cls: 'voice-ai-journal-options-button' });
-        languageButton.addEventListener('click', () => {
-            new Notice('Language settings can be configured in the plugin settings');
-        });
-        
-        // Model options
-        const modelContainer = container.createDiv({ cls: 'voice-ai-journal-model-options' });
-        const modelButton = modelContainer.createEl('button', { text: 'Model options', cls: 'voice-ai-journal-options-button' });
-        modelButton.addEventListener('click', () => {
-            new Notice('Model settings can be configured in the plugin settings');
-        });
+        // Language and model options removed as requested
     }
 
     private startTimerUpdates() {
