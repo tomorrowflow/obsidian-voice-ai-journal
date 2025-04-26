@@ -24,6 +24,8 @@ export class RecordingModal extends Modal {
     private timerInterval: number | null = null;
     private options: RecordingModalOptions;
     private isMobile: boolean;
+    private scribingMsg: HTMLElement;
+    private isScribing: boolean = false;
 
     constructor(plugin: VoiceAIJournalPlugin) {
         super(plugin.app);
@@ -75,40 +77,82 @@ export class RecordingModal extends Modal {
         // Create container for the modal content
         const container = contentEl.createDiv({ cls: 'voice-ai-journal-container' });
         
-        // Create timer display
-        const timerContainer = container.createDiv({ cls: 'voice-ai-journal-timer-container' });
-        this.recordingTimer = timerContainer.createDiv({ cls: 'voice-ai-journal-timer' });
+        // --- Timer Display ---
+        const timerContainer = container.createDiv({ cls: 'vaj-timer-container' });
+        this.recordingTimer = timerContainer.createDiv({ cls: 'vaj-timer' });
         this.recordingTimer.setText('00:00.00');
-        
-        // Create button container
-        const buttonContainer = container.createDiv({ cls: 'voice-ai-journal-button-container' });
-        
-        // Create start button
-        this.startButton = buttonContainer.createDiv({ cls: 'voice-ai-journal-button voice-ai-journal-start-button' });
-        setIcon(this.startButton, 'play');
-        this.startButton.setText('Start');
+        this.recordingTimer.setAttr('style', [
+            'font-size: 1.8rem;',
+            'margin: 12px 0;',
+            'text-align: center;',
+            'width: 100%;',
+            'font-weight: bold;',
+            'font-family: monospace;'
+        ].join(' '));
+
+        // --- Button Controls ---
+        const buttonContainer = container.createDiv({ cls: 'vaj-control-buttons-container' });
+        buttonContainer.setAttr('style', [
+            'width: 100%;',
+            'display: flex;',
+            'justify-content: center;',
+            'margin: 12px 0;'
+        ].join(' '));
+
+        // Start button (shown only when inactive)
+        // Shared style for equal width and spacing
+        const btnSharedStyle = [
+            'width: 120px;',
+            'margin-right: 12px;',
+            'padding: 0;',
+            'display: flex;',
+            'align-items: center;',
+            'justify-content: center;',
+            'gap: 6px;',
+            'box-sizing: border-box;'
+        ].join(' ');
+
+        // Start Button (mic)
+        this.startButton = buttonContainer.createEl('button', { cls: 'vaj-btn vaj-btn-start' });
+        this.startButton.setAttr('style', btnSharedStyle);
         this.startButton.addEventListener('click', () => this.handleStart());
-        
-        // Create pause/resume button (initially hidden)
-        this.pauseResumeButton = buttonContainer.createDiv({ cls: 'voice-ai-journal-button voice-ai-journal-pause-button' });
-        setIcon(this.pauseResumeButton, 'pause');
-        this.pauseResumeButton.setText('Pause');
-        this.pauseResumeButton.style.display = 'none';
-        this.pauseResumeButton.addEventListener('click', () => this.handlePauseResume());
-        
-        // Create stop button (initially hidden)
-        this.stopButton = buttonContainer.createDiv({ cls: 'voice-ai-journal-button voice-ai-journal-stop-button' });
-        setIcon(this.stopButton, 'check');
-        this.stopButton.setText('Complete');
-        this.stopButton.style.display = 'none';
-        this.stopButton.addEventListener('click', () => this.handleComplete());
-        
-        // Create reset button (initially hidden)
-        this.resetButton = buttonContainer.createDiv({ cls: 'voice-ai-journal-button voice-ai-journal-reset-button' });
-        setIcon(this.resetButton, 'trash');
-        this.resetButton.setText('Reset');
-        this.resetButton.style.display = 'none';
+        this.buildButton(this.startButton, 'mic', 'Start');
+
+        // Reset Button (trash-2)
+        this.resetButton = buttonContainer.createEl('button', { cls: 'vaj-btn' });
+        this.resetButton.setAttr('style', btnSharedStyle);
         this.resetButton.addEventListener('click', () => this.handleReset());
+        this.buildButton(this.resetButton, 'trash-2', 'Reset');
+        this.resetButton.style.display = 'none';
+
+        // Pause/Resume Button (circle-pause/circle-play)
+        this.pauseResumeButton = buttonContainer.createEl('button', { cls: 'vaj-btn vaj-btn-pause-resume' });
+        this.pauseResumeButton.setAttr('style', btnSharedStyle);
+        this.pauseResumeButton.addEventListener('click', () => this.handlePauseResume());
+        this.pauseResumeButton.style.display = 'none';
+        // Initial state
+        this.setPauseResumeButton('pause');
+
+        // Complete Button (save)
+        this.stopButton = buttonContainer.createEl('button', { cls: 'vaj-btn vaj-btn-save' });
+        // Remove margin-right for last button
+        this.stopButton.setAttr('style', btnSharedStyle.replace('margin-right: 12px;', ''));
+        this.stopButton.addEventListener('click', () => this.handleComplete());
+        this.buildButton(this.stopButton, 'save', 'Complete');
+        this.stopButton.style.display = 'none';
+
+        // Scribing message (shown when processing)
+        this.scribingMsg = container.createDiv({ cls: 'vaj-scribing-msg' });
+        this.scribingMsg.setText('♽ Voice AI Journal in progress');
+        this.scribingMsg.setAttr('style', [
+            'font-size: 1em;',
+            'margin: 12px 0;',
+            'text-align: center;',
+            'display: none;'
+        ].join(' '));
+
+        // Initial button state
+        this.updateButtonDisplay();
         
         // No microphone info at the top - moved to settings section
         
@@ -259,16 +303,9 @@ export class RecordingModal extends Modal {
             const success = await this.plugin.togglePauseResume();
             
             if (success) {
-                // Update button icon and text based on new state
+                // Always use the helper to update icon and text
                 const isPaused = this.plugin.getRecordingState() === 'paused';
-                
-                if (isPaused) {
-                    setIcon(this.pauseResumeButton, 'play');
-                    this.pauseResumeButton.setText('Resume');
-                } else {
-                    setIcon(this.pauseResumeButton, 'pause');
-                    this.pauseResumeButton.setText('Pause');
-                }
+                this.setPauseResumeButton(isPaused ? 'resume' : 'pause');
             }
         }
     }
@@ -276,10 +313,11 @@ export class RecordingModal extends Modal {
     private async handleComplete() {
         // Disable buttons during processing
         this.disableButtons();
-        
+        this.isScribing = true;
+        this.updateButtonDisplay();
+        this.scribingMsg.style.display = '';
         // Show processing notice
         new Notice('Voice AI Journal: Processing recording...');
-        
         try {
             // Process the recording with the selected options
             await this.plugin.stopAndProcess({
@@ -290,57 +328,111 @@ export class RecordingModal extends Modal {
                 diaryEntryDate: this.options.diaryEntryDate,
                 selectedTemplate: this.options.selectedTemplate
             });
-            
             // Close the modal when done
             this.close();
         } catch (error) {
             console.error('[Voice AI Journal] Error processing recording:', error);
             new Notice('Voice AI Journal: Error processing recording');
-            
             // Reset UI to allow retry
+            this.isScribing = false;
+            this.updateButtonDisplay();
+            this.scribingMsg.style.display = 'none';
             this.resetButtons();
         }
     }
 
     private handleReset() {
         const recordingState = this.plugin.getRecordingState();
-        
         if (recordingState !== 'inactive') {
             this.plugin.cancelRecording();
+            this.isScribing = false;
+            this.updateButtonDisplay();
+            this.scribingMsg.style.display = 'none';
             this.resetButtons();
         }
     }
 
     private disableButtons() {
         // Disable all buttons during processing
-        this.startButton.classList.add('voice-ai-journal-button-disabled');
-        this.pauseResumeButton.classList.add('voice-ai-journal-button-disabled');
-        this.stopButton.classList.add('voice-ai-journal-button-disabled');
-        this.resetButton.classList.add('voice-ai-journal-button-disabled');
-        
-        this.startButton.setAttribute('disabled', 'true');
-        this.pauseResumeButton.setAttribute('disabled', 'true');
-        this.stopButton.setAttribute('disabled', 'true');
-        this.resetButton.setAttribute('disabled', 'true');
+        [this.startButton, this.pauseResumeButton, this.stopButton, this.resetButton].forEach(btn => {
+            btn.classList.add('vaj-btn-disabled');
+            btn.setAttribute('disabled', 'true');
+        });
     }
 
     private resetButtons() {
         // Reset buttons to initial state
-        this.startButton.style.display = 'inline-block';
-        this.pauseResumeButton.style.display = 'none';
-        this.stopButton.style.display = 'none';
-        this.resetButton.style.display = 'none';
-        
-        // Remove disabled state
-        this.startButton.classList.remove('voice-ai-journal-button-disabled');
-        this.pauseResumeButton.classList.remove('voice-ai-journal-button-disabled');
-        this.stopButton.classList.remove('voice-ai-journal-button-disabled');
-        this.resetButton.classList.remove('voice-ai-journal-button-disabled');
-        
-        this.startButton.removeAttribute('disabled');
-        this.pauseResumeButton.removeAttribute('disabled');
-        this.stopButton.removeAttribute('disabled');
-        this.resetButton.removeAttribute('disabled');
+        this.isScribing = false;
+        // Force pause/resume button to always show Pause after reset
+        this.setPauseResumeButton('pause');
+        this.updateButtonDisplay();
+        this.scribingMsg.style.display = 'none';
+        [this.startButton, this.pauseResumeButton, this.stopButton, this.resetButton].forEach(btn => {
+            btn.classList.remove('vaj-btn-disabled');
+            btn.removeAttribute('disabled');
+        });
+    }
+
+    // Helper to robustly set a button's icon and text with perfect alignment and sizing
+    private buildButton(button: HTMLElement, icon: string, text: string) {
+        button.empty();
+        // Outer flex container
+        const flex = button.createDiv();
+        flex.setAttr('style', [
+            'display: flex;',
+            'flex-direction: row;',
+            'align-items: center;',
+            'justify-content: center;',
+            'width: 100%;',
+            'height: 100%;',
+            'gap: 8px;'
+        ].join(' '));
+        // Icon
+        const iconSpan = flex.createSpan();
+        iconSpan.setAttr('style', 'display: flex; align-items: center; justify-content: center;');
+        setIcon(iconSpan, icon);
+        // Text
+        const textSpan = flex.createSpan();
+        textSpan.setAttr('style', 'font-size: 1.1em; line-height: 1;');
+        textSpan.setText(text);
+    }
+
+    // Helper for pause/resume (always fully rebuilds the button)
+    private setPauseResumeButton(state: 'pause' | 'resume') {
+        if (state === 'pause') {
+            this.buildButton(this.pauseResumeButton, 'circle-pause', 'Pause');
+        } else {
+            this.buildButton(this.pauseResumeButton, 'circle-play', 'Resume');
+        }
+    }
+
+    // Update button visibility and text/icons based on state
+    private updateButtonDisplay() {
+        const state = this.plugin.getRecordingState();
+        if (this.isScribing) {
+            this.startButton.style.display = 'none';
+            this.pauseResumeButton.style.display = 'none';
+            this.stopButton.style.display = 'none';
+            this.resetButton.style.display = 'none';
+            return;
+        }
+        if (state === 'inactive') {
+            this.startButton.style.display = '';
+            this.pauseResumeButton.style.display = 'none';
+            this.stopButton.style.display = 'none';
+            this.resetButton.style.display = 'none';
+        } else {
+            this.startButton.style.display = 'none';
+            this.pauseResumeButton.style.display = '';
+            this.stopButton.style.display = '';
+            this.resetButton.style.display = '';
+            // Pause/Resume icon and text (always with icon)
+            if (state === 'paused') {
+                this.setPauseResumeButton('resume');
+            } else {
+                this.setPauseResumeButton('pause');
+            }
+        }
     }
 
     private getCurrentDate(): string {
