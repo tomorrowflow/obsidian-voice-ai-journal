@@ -676,33 +676,61 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
             }
         }
         
-        // Add remove template button at the bottom (outside the box)
+        // Add remove or reset template button at the bottom (outside the box)
         if (this.selectedTemplateId) {
             const template = templates.find((t: JournalTemplate) => t.id === this.selectedTemplateId);
             if (template) {
-                new Setting(containerEl)
-                    .setName('Remove Template')
-                    .setDesc('Delete this template')
-                    .addButton(button => {
-                        button.setButtonText('Remove')
-                            .setWarning()
-                            .onClick(async () => {
-                                // Remove the template from settings
-                                const templateIndex = this.plugin.settings.templates.findIndex(t => t.id === template.id);
-                                if (templateIndex > -1) {
-                                    this.plugin.settings.templates.splice(templateIndex, 1);
-                                    await this.plugin.saveSettings();
-                                    
-                                    // Reset selected template ID
-                                    this.selectedTemplateId = this.plugin.settings.templates.length > 0 
-                                        ? this.plugin.settings.templates[0].id 
-                                        : null;
+                if (template.id === DEFAULT_JOURNAL_TEMPLATE.id) {
+                    // Show reset to default button for the default template
+                    new Setting(containerEl)
+                        .setName('Reset Default Template')
+                        .setDesc('Restore the default template settings. This cannot be deleted.')
+                        .addButton(button => {
+                            button.setButtonText('Reset to Default')
+                                .setWarning()
+                                .onClick(async () => {
+                                    // Completely replace the default template with a fresh copy
+                                    const idx = this.plugin.settings.templates.findIndex(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id);
+                                    if (idx > -1) {
+                                        // Create a fresh deep copy of the default template
+                                        const freshDefaultTemplate = JSON.parse(JSON.stringify(DEFAULT_JOURNAL_TEMPLATE));
                                         
-                                    // Refresh the view
-                                    this.renderTemplatesTab(containerEl);
-                                }
-                            });
-                    });
+                                        // Remove the current template and insert the fresh one at the same position
+                                        this.plugin.settings.templates.splice(idx, 1, freshDefaultTemplate);
+                                        
+                                        // Save settings
+                                        await this.plugin.saveSettings();
+                                        
+                                        // Force a complete UI refresh
+                                        containerEl.empty();
+                                        this.renderTemplatesTab(containerEl);
+                                    }
+                                });
+                        });
+                } else {
+                    // Show remove button for non-default templates
+                    new Setting(containerEl)
+                        .setName('Remove Template')
+                        .setDesc('Delete this template')
+                        .addButton(button => {
+                            button.setButtonText('Remove')
+                                .setWarning()
+                                .onClick(async () => {
+                                    // Remove the template from settings
+                                    const templateIndex = this.plugin.settings.templates.findIndex(t => t.id === template.id);
+                                    if (templateIndex > -1) {
+                                        this.plugin.settings.templates.splice(templateIndex, 1);
+                                        await this.plugin.saveSettings();
+                                        // Reset selected template ID
+                                        this.selectedTemplateId = this.plugin.settings.templates.length > 0 
+                                            ? this.plugin.settings.templates[0].id 
+                                            : null;
+                                        // Refresh the view
+                                        this.renderTemplatesTab(containerEl);
+                                    }
+                                });
+                        });
+                }
             }
         }
     }
