@@ -8,6 +8,7 @@
 export interface TemplateSection {
 	title: string;
 	content: string;
+	optional: boolean;
 	prompt: string;
 }
 
