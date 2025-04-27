@@ -502,7 +502,7 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                     // Style the setting name to look like h2
                     const nameEl = setting.nameEl;
                     nameEl.style.fontWeight = 'bold';
-                    nameEl.style.fontSize = 'var(--h1-size)';
+                    nameEl.style.fontSize = 'var(--h4-size)';
                     nameEl.style.marginBottom = '0.4em';
                 })
                 .addText(text => {
@@ -559,9 +559,17 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                         .addText(text => {
                             text.setValue(section.title || `Section ${idx + 1}`)
                                 .onChange(async (value) => {
+                                    // Just update the model and save, don't re-render yet
                                     template.sections[idx].title = value;
                                     await this.plugin.saveSettings();
                                 });
+                                
+                            // Add blur event to update the dropdown when user leaves the field
+                            text.inputEl.addEventListener('blur', async () => {
+                                // Full re-render is the most reliable way to update the dropdown
+                                // But only do this when the user leaves the field to avoid focus loss
+                                this.renderTemplatesTab(containerEl);
+                            });
                             // Make the input field wider
                             text.inputEl.style.width = '100%';
                         });
