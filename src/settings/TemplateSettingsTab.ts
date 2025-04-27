@@ -116,7 +116,7 @@ export class TemplateSettingsTab {
                     .setName('Add Section')
                     .addButton(b=>b.setButtonText('Add Section').setCta().onClick(async ()=>{
                         tmpl.sections = tmpl.sections||[];
-                        tmpl.sections.push({ title:'New Section',content:'',prompt:'',optional:false });
+                        tmpl.sections.push({ title:'New Section', context:'', prompt:'', optional:false });
                         await this.plugin.saveSettings();
                         this.render();
                     }));
@@ -130,14 +130,26 @@ export class TemplateSettingsTab {
                         .setClass('section-title-setting')
                         .then(st=>st.nameEl.style.fontWeight='bold')
                         .addText(txt=>{ txt.setValue(sec.title||`Section ${idx+1}`).onChange(async v=>{ sec.title=v; await this.plugin.saveSettings(); }); txt.inputEl.style.width='100%'; txt.inputEl.addEventListener('blur',()=>this.render()); });
-                    // Content
+                    // Note Context
                     new Setting(sEl)
-                        .setName('Content')
-                        .addTextArea(ta=>{ ta.setValue(sec.content||''); ta.inputEl.rows=4; ta.inputEl.style.resize='none'; ta.inputEl.style.width='100%'; ta.onChange(async v=>{ sec.content=v; await this.plugin.saveSettings(); }); });
+                        .setName('Note Context')
+                        .addTextArea(ta=>{
+                            ta.setValue(sec.context||'');
+                            ta.inputEl.rows=4;
+                            ta.inputEl.style.resize='none';
+                            ta.inputEl.style.width='100%';
+                            ta.onChange(async (v: string) => { sec.context = v; await this.plugin.saveSettings(); });
+                        });
                     // Prompt
                     new Setting(sEl)
                         .setName('Prompt')
-                        .addTextArea(ta=>{ ta.setValue(sec.prompt||''); ta.inputEl.rows=4; ta.inputEl.style.resize='none'; ta.inputEl.style.width='100%'; ta.onChange(async v=>{ sec.prompt=v; await this.plugin.saveSettings(); }); });
+                        .addTextArea(ta=>{
+                            ta.setValue(sec.prompt||'');
+                            ta.inputEl.rows=4;
+                            ta.inputEl.style.resize='none';
+                            ta.inputEl.style.width='100%';
+                            ta.onChange(async (v: string) => { sec.prompt = v; await this.plugin.saveSettings(); });
+                        });
                     // Optional
                     new Setting(sEl)
                         .setName('Optional Section')

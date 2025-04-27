@@ -84,12 +84,12 @@ export class TemplateEditorModal extends Modal {
         
         const templateTextarea = document.createElement('textarea');
         templateTextarea.addClass('template-editor-textarea');
-        templateTextarea.value = this.template.sections[0]?.content;
+        templateTextarea.value = this.template.sections[0]?.context;
         templateTextarea.rows = 10;
         templateTextarea.addEventListener('change', () => {
             if (this.template.sections.length > 0) {
-    this.template.sections[0].content = templateTextarea.value;
-}
+                this.template.sections[0].context = templateTextarea.value;
+            }
             this.updatePreview();
         });
         
@@ -109,8 +109,8 @@ export class TemplateEditorModal extends Modal {
         promptTextarea.rows = 4;
         promptTextarea.addEventListener('change', () => {
             if (this.template.sections.length > 0) {
-    this.template.sections[0].prompt = promptTextarea.value;
-}
+                this.template.sections[0].prompt = promptTextarea.value;
+            }
         });
         
         contentEl.appendChild(promptTextarea);
@@ -154,7 +154,7 @@ export class TemplateEditorModal extends Modal {
         previewContainer.empty();
         
         try {
-            const previewEl = this.templateManager.createTemplatePreview(this.template.sections[0]?.content);
+            const previewEl = this.templateManager.createTemplatePreview(this.template.sections[0]?.context);
             previewContainer.appendChild(previewEl);
         } catch (error) {
             const errorEl = document.createElement('div');
@@ -181,7 +181,7 @@ export class TemplateEditorModal extends Modal {
             return;
         }
         
-        if (!this.templateManager.validateTemplate(this.template.sections[0]?.content)) {
+        if (!this.templateManager.validateTemplate(this.template.sections[0]?.context)) {
             // Show error
             const notice = document.createElement('div');
             notice.addClass('notice');

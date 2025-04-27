@@ -356,7 +356,7 @@ export class RecordingModal extends Modal {
             }
             
             // Process template
-            const processedContent = this.templateManager.processTemplate(selectedTemplate.sections[0]?.content, templateVars);
+            const processedContent = this.templateManager.processTemplate(selectedTemplate.sections[0]?.context, templateVars);
             
             // Generate filename
             const filename = this.templateManager.generateFilename(this.plugin.settings.noteNamingFormat);

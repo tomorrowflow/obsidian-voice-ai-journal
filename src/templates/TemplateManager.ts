@@ -84,13 +84,13 @@ export class TemplateManager {
             sections: [
                 {
                     title: 'Voice Note',
-                    content: '{{transcription}}',
+                    context: '{{transcription}}',
                     prompt: 'Transcribe the following audio.',
                     optional: false
                 },
                 {
                     title: 'Summary',
-                    content: '{{summary}}',
+                    context: '{{summary}}',
                     prompt: 'Summarize the key points from this journal entry.',
                     optional: false
                 }

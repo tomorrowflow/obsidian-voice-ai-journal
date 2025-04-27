@@ -7,7 +7,7 @@
  */
 export interface TemplateSection {
 	title: string;
-	content: string;
+	context: string;
 	optional: boolean;
 	prompt: string;
 }
