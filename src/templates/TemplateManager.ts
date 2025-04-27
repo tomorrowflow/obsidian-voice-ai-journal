@@ -85,12 +85,14 @@ export class TemplateManager {
                 {
                     title: 'Voice Note',
                     content: '{{transcription}}',
-                    prompt: 'Transcribe the following audio.'
+                    prompt: 'Transcribe the following audio.',
+                    optional: false
                 },
                 {
                     title: 'Summary',
                     content: '{{summary}}',
-                    prompt: 'Summarize the key points from this journal entry.'
+                    prompt: 'Summarize the key points from this journal entry.',
+                    optional: false
                 }
             ]
         };

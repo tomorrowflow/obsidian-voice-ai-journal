@@ -1,6 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
 import type { AIProvider, JournalTemplate } from '../types';
+import { DEFAULT_JOURNAL_TEMPLATE } from './settings';
 
 /**
  * Settings tab for Voice AI Journal plugin with tabbed interface
@@ -376,8 +377,11 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.createEl('h3', { text: 'Journal Templates' });
 
-        // Ensure templates array exists
-        const templates = Array.isArray(this.plugin.settings.templates) ? this.plugin.settings.templates : [];
+        // Ensure templates array exists and always include the default template if missing
+        let templates = Array.isArray(this.plugin.settings.templates) ? [...this.plugin.settings.templates] : [];
+        if (!templates.some(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id)) {
+            templates = [DEFAULT_JOURNAL_TEMPLATE, ...templates];
+        }
         // Get template IDs and names
         const templateIds = templates.map((t: JournalTemplate) => t.id);
         const templateNames = templates.map((t: JournalTemplate) => t.name);
@@ -430,12 +434,14 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                                 {
                                     title: 'Voice Note',
                                     content: '{{transcription}}',
-                                    prompt: 'Transcribe the following audio.'
+                                    prompt: 'Transcribe the following audio.',
+                                    optional: false
                                 },
                                 {
                                     title: 'Thoughts',
                                     content: '{{thoughts}}',
-                                    prompt: 'Analyze the journal entry and extract thoughts.'
+                                    prompt: 'Analyze the journal entry and extract thoughts.',
+                                    optional: false
                                 }
                             ],
                         };
@@ -527,10 +533,11 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                             if (!Array.isArray(template.sections)) {
                                 template.sections = [];
                             }
-                            template.sections.push({ 
-                                title: 'New Section', 
-                                content: '', 
-                                prompt: '' 
+                            template.sections.push({
+                                title: 'New Section',
+                                content: '',
+                                prompt: '',
+                                optional: false
                             });
                             await this.plugin.saveSettings();
                             this.renderTemplatesTab(containerEl);
@@ -601,6 +608,18 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                                 await this.plugin.saveSettings();
                             });
                         });
+
+                    // Optional section toggle
+                    new Setting(sectionEl)
+                        .setName('Optional Section')
+                        .setDesc('If checked, this section will be treated as optional when using the template.')
+                        .addToggle(toggle => {
+                            toggle.setValue(section.optional ?? false);
+                            toggle.onChange(async (value: boolean) => {
+                                template.sections[idx].optional = value;
+                                await this.plugin.saveSettings();
+                            });
+                        });
                 });
                 
                 // Add section removal UI at the bottom
@@ -648,7 +667,7 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                             .setCta()
                             .onClick(async () => {
                                 template.sections = [
-                                    { title: 'New Section', content: '', prompt: '' }
+                                    { title: 'New Section', content: '', prompt: '', optional: false }
                                 ];
                                 await this.plugin.saveSettings();
                                 this.renderTemplatesTab(containerEl);
