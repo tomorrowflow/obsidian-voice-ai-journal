@@ -11,6 +11,7 @@ import { ASRManager } from './src/ai/ASRManager';
 import { RecordingManager, RecordingState } from './src/recording/RecordingManager';
 import { RecordingModal } from './src/ui/modals/RecordingModal';
 import { TemplateManager } from './src/templates/TemplateManager';
+import { FileService } from './src/services/FileService';
 import './src/styles.css';
 import './src/ui/styles/recording-modal.css';
 
@@ -36,6 +37,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	asrManager: ASRManager;
 	recordingManager: RecordingManager;
 	templateManager: TemplateManager;
+	private fileService: FileService;
 	
 	/**
 	 * Start recording audio
@@ -95,7 +97,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			const recordingsFolder = this.settings.recordingsLocation || 'Recordings';
 			
 			// Create folder if it doesn't exist
-			await this.ensureFolderExists(recordingsFolder);
+			await this.fileService.ensureFolderExists(recordingsFolder);
 			
 			// Generate a filename with timestamp to avoid duplicates
 			const timestamp = new Date().toISOString().replace(/[:T-]/g, '').slice(0, 14);
@@ -221,6 +223,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			this.asrManager = new ASRManager(this);
 			this.recordingManager = new RecordingManager(this);
 			this.templateManager = new TemplateManager();
+			this.fileService = new FileService(this.app);
 			
 			// Register settings tab
 			this.addSettingTab(new VoiceAIJournalSettingsTab(this.app, this));
@@ -383,7 +386,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			const recordingsFolder = this.settings.recordingsLocation || '/Recordings';
 			
 			// Create folder if it doesn't exist
-			await this.ensureFolderExists(recordingsFolder);
+			await this.fileService.ensureFolderExists(recordingsFolder);
 			
 			// Generate a filename with timestamp to avoid duplicates
 			const timestamp = new Date().toISOString().replace(/[:T-]/g, '').slice(0, 14);
@@ -458,23 +461,6 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	 * @param path The folder path to ensure
 	 */
 	private async ensureFolderExists(path: string): Promise<void> {
-		if (path === '/') return; // Root always exists
-		
-		const folderExists = this.app.vault.getAbstractFileByPath(path);
-		if (!folderExists) {
-			// Create folder and any parent folders that don't exist
-			try {
-				await this.app.vault.createFolder(path);
-				console.log(`Created folder: ${path}`);
-			} catch (error) {
-				// If the folder creation fails, it might be because parent folders don't exist
-				const parentPath = path.substring(0, path.lastIndexOf('/'));
-				if (parentPath) {
-					await this.ensureFolderExists(parentPath);
-					// Try again now that parent exists
-					await this.app.vault.createFolder(path);
-				}
-			}
-		}
+		return this.fileService.ensureFolderExists(path);
 	}
 }
