@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
 import type { AIProvider, JournalTemplate } from '../types';
 import { DEFAULT_JOURNAL_TEMPLATE } from './settings';
@@ -378,9 +378,22 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 		containerEl.createEl('h3', { text: 'Journal Templates' });
 
         // Ensure templates array exists and always include the default template if missing
-        let templates = Array.isArray(this.plugin.settings.templates) ? [...this.plugin.settings.templates] : [];
-        if (!templates.some(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id)) {
-            templates = [DEFAULT_JOURNAL_TEMPLATE, ...templates];
+        if (!Array.isArray(this.plugin.settings.templates)) {
+            this.plugin.settings.templates = [];
+        }
+
+        // Create a local copy of templates for UI rendering
+        let templates = [...this.plugin.settings.templates];
+        
+        // Check if default template exists in the settings
+        if (!this.plugin.settings.templates.some(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id)) {
+            // Add the default template to the actual plugin settings
+            const defaultTemplateCopy = JSON.parse(JSON.stringify(DEFAULT_JOURNAL_TEMPLATE));
+            this.plugin.settings.templates.unshift(defaultTemplateCopy); // Add to beginning of array
+            // Also add to our local copy
+            templates = [defaultTemplateCopy, ...templates];
+            // Save immediately to persist the default template
+            this.plugin.saveSettings().catch(e => console.error('Failed to save default template', e));
         }
         // Get template IDs and names
         const templateIds = templates.map((t: JournalTemplate) => t.id);
@@ -688,23 +701,67 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
                         .addButton(button => {
                             button.setButtonText('Reset to Default')
                                 .setWarning()
-                                .onClick(async () => {
-                                    // Completely replace the default template with a fresh copy
-                                    const idx = this.plugin.settings.templates.findIndex(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id);
-                                    if (idx > -1) {
-                                        // Create a fresh deep copy of the default template
-                                        const freshDefaultTemplate = JSON.parse(JSON.stringify(DEFAULT_JOURNAL_TEMPLATE));
+                                .onClick(() => {
+                                    // Create and open a confirmation modal
+                                    const modal = new Modal(this.app);
+                                    modal.titleEl.setText('Reset Default Template');
+                                    modal.contentEl.createEl('p', {
+                                        text: 'Are you sure you want to reset the default template to its original settings? This cannot be undone.'
+                                    });
+                                    
+                                    // Add buttons
+                                    const buttonContainer = modal.contentEl.createEl('div', {
+                                        cls: 'voice-journal-modal-buttons'
+                                    });
+                                    
+                                    // Cancel button
+                                    const cancelButton = buttonContainer.createEl('button', {
+                                        text: 'Cancel'
+                                    });
+                                    cancelButton.onclick = () => modal.close();
+                                    
+                                    // Reset button
+                                    const resetButton = buttonContainer.createEl('button', {
+                                        text: 'Reset',
+                                        cls: 'mod-warning'
+                                    });
+                                    
+                                    resetButton.onclick = async () => {
+                                        modal.close();
                                         
-                                        // Remove the current template and insert the fresh one at the same position
-                                        this.plugin.settings.templates.splice(idx, 1, freshDefaultTemplate);
-                                        
-                                        // Save settings
-                                        await this.plugin.saveSettings();
-                                        
-                                        // Force a complete UI refresh
-                                        containerEl.empty();
-                                        this.renderTemplatesTab(containerEl);
-                                    }
+                                        // Completely replace the default template with a fresh copy
+                                        const idx = this.plugin.settings.templates.findIndex(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id);
+                                        if (idx > -1) {
+                                            // Create a fresh deep copy of the default template
+                                            const freshDefaultTemplate = JSON.parse(JSON.stringify(DEFAULT_JOURNAL_TEMPLATE));
+                                            
+                                            // Remove the current template and insert the fresh one at the same position
+                                            this.plugin.settings.templates.splice(idx, 1, freshDefaultTemplate);
+                                            
+                                            // Explicitly set the id to ensure it's valid
+                                            this.plugin.settings.templates[idx].id = DEFAULT_JOURNAL_TEMPLATE.id;
+                                            
+                                            // Save settings and update UI
+                                            try {
+                                                await this.plugin.saveSettings();
+                                                
+                                                // Ensure we select the default template again
+                                                this.selectedTemplateId = DEFAULT_JOURNAL_TEMPLATE.id;
+                                                
+                                                // Force a complete UI refresh
+                                                this.display();
+                                                
+                                                new Notice('Default template has been reset successfully');
+                                            } catch (error) {
+                                                new Notice('Failed to reset template: ' + error);
+                                            }
+                                        } else {
+                                            new Notice('Default template not found, cannot reset');
+                                        }
+                                    };
+                                    
+                                    // Open the modal
+                                    modal.open();
                                 });
                         });
                 } else {
@@ -791,6 +848,26 @@ private addStyles(): void {
             border-radius: 5px;
             padding: 10px;
             margin-bottom: 20px;
+        }
+        
+        .voice-journal-modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .voice-journal-modal-buttons button {
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        
+        .voice-journal-modal-buttons button.mod-warning {
+            background-color: var(--background-modifier-error);
+            color: var(--text-on-accent);
         }
     `;
     // Add to document
