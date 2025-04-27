@@ -12,8 +12,8 @@ export class TemplateManager {
      * @param variables The variables to inject into the template
      * @returns The processed template string
      */
-    processTemplate(template: string, variables: Record<string, string>): string {
-        let result = template;
+    processTemplate(templateContent: string, variables: Record<string, string>): string {
+        let result = templateContent;
         
         // Replace date variables (format: {{date:FORMAT}})
         result = this.processDateVariables(result);
@@ -64,9 +64,9 @@ export class TemplateManager {
      * @param template The template to validate
      * @returns true if valid, false otherwise
      */
-    validateTemplate(template: string): boolean {
+    validateTemplate(templateContent: string): boolean {
         // Simple validation to check if the template contains required placeholders
-        return template.includes('{{transcription}}');
+        return templateContent.includes('{{transcription}}');
     }
 
     /**
@@ -81,8 +81,18 @@ export class TemplateManager {
             id,
             name,
             description: 'Custom template',
-            template: '# {{date:YYYY-MM-DD}} Journal Entry\n\n## Voice Note\n{{transcription}}\n\n## Summary\n{{summary}}',
-            prompt: 'Summarize the key points from this journal entry'
+            sections: [
+                {
+                    title: 'Voice Note',
+                    content: '{{transcription}}',
+                    prompt: 'Transcribe the following audio.'
+                },
+                {
+                    title: 'Summary',
+                    content: '{{summary}}',
+                    prompt: 'Summarize the key points from this journal entry.'
+                }
+            ]
         };
     }
 
@@ -104,22 +114,23 @@ export class TemplateManager {
     /**
      * Create an HTML preview of a rendered template
      * 
-     * @param template The template string
+     * @param templateContent The template content to render
      * @returns An HTML element with the preview
      */
-    createTemplatePreview(template: string): HTMLElement {
+    createTemplatePreview(templateContent: string): HTMLElement {
         const previewEl = document.createElement('div');
         previewEl.addClass('voice-ai-journal-template-preview');
         
+        // For demonstration, use sample variables
         const sampleVariables = {
-            transcription: 'This is a sample transcription of a voice recording.',
+            transcription: 'This is a sample transcription of your voice note.',
             summary: 'This is a sample summary of the journal entry.',
             insights: '- Key insight 1\n- Key insight 2\n- Key insight 3',
             gratitude_points: '- Grateful for family\n- Grateful for health\n- Grateful for opportunities',
             positive_moments: '- Had a productive meeting\n- Enjoyed a nice walk\n- Connected with an old friend'
         };
         
-        const processedTemplate = this.processTemplate(template, sampleVariables);
+        const processedTemplate = this.processTemplate(templateContent, sampleVariables);
         previewEl.innerHTML = `<div class="voice-ai-journal-preview-content">${processedTemplate}</div>`;
         
         return previewEl;

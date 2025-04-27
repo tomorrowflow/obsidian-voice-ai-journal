@@ -43,16 +43,46 @@ export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
 		{
 			id: 'default',
 			name: 'Default Journal Entry',
-			description: 'Standard journal entry with transcription and summary',
-			template: '# {{date:YYYY-MM-DD}} Journal Entry\n\n## Voice Note\n{{transcription}}\n\n## Summary\n{{summary}}\n\n## Insights\n{{insights}}',
-			prompt: 'Analyze the following journal entry. Provide a concise summary and 3-5 key insights or themes from the text.'
+			description: 'Standard journal entry with transcription, summary, and insights',
+			sections: [
+				{
+					title: 'Voice Note',
+					content: '{{transcription}}',
+					prompt: 'Transcribe the following audio.'
+				},
+				{
+					title: 'Summary',
+					content: '{{summary}}',
+					prompt: 'Summarize the journal entry.'
+				},
+				{
+					title: 'Insights',
+					content: '{{insights}}',
+					prompt: 'Provide 3-5 key insights or themes from the journal entry.'
+				}
+			],
 		},
 		{
 			id: 'gratitude',
 			name: 'Gratitude Journal',
 			description: 'Focus on gratitude and positive experiences',
-			template: '# Gratitude Journal - {{date:YYYY-MM-DD}}\n\n## Voice Note\n{{transcription}}\n\n## What I\'m Grateful For\n{{gratitude_points}}\n\n## Positive Moments\n{{positive_moments}}',
-			prompt: 'Extract gratitude statements and positive moments from the journal entry. Format as bullet points.'
+			sections: [
+				{
+					title: 'Voice Note',
+					content: '{{transcription}}',
+					prompt: 'Transcribe the following audio.'
+				},
+				{
+					title: 'Gratitude Points',
+					content: '{{gratitude_points}}',
+					prompt: 'Extract gratitude statements from the journal entry. Format as bullet points.'
+				},
+				{
+					title: 'Positive Moments',
+					content: '{{positive_moments}}',
+					prompt: 'Extract positive moments from the journal entry. Format as bullet points.'
+				}
+			]
 		}
 	],
 	defaultTemplate: 'default',

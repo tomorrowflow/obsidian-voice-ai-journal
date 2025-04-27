@@ -84,10 +84,12 @@ export class TemplateEditorModal extends Modal {
         
         const templateTextarea = document.createElement('textarea');
         templateTextarea.addClass('template-editor-textarea');
-        templateTextarea.value = this.template.template;
+        templateTextarea.value = this.template.sections[0]?.content;
         templateTextarea.rows = 10;
         templateTextarea.addEventListener('change', () => {
-            this.template.template = templateTextarea.value;
+            if (this.template.sections.length > 0) {
+    this.template.sections[0].content = templateTextarea.value;
+}
             this.updatePreview();
         });
         
@@ -103,10 +105,12 @@ export class TemplateEditorModal extends Modal {
         
         const promptTextarea = document.createElement('textarea');
         promptTextarea.addClass('prompt-editor-textarea');
-        promptTextarea.value = this.template.prompt;
+        promptTextarea.value = this.template.sections[0]?.prompt;
         promptTextarea.rows = 4;
         promptTextarea.addEventListener('change', () => {
-            this.template.prompt = promptTextarea.value;
+            if (this.template.sections.length > 0) {
+    this.template.sections[0].prompt = promptTextarea.value;
+}
         });
         
         contentEl.appendChild(promptTextarea);
@@ -150,7 +154,7 @@ export class TemplateEditorModal extends Modal {
         previewContainer.empty();
         
         try {
-            const previewEl = this.templateManager.createTemplatePreview(this.template.template);
+            const previewEl = this.templateManager.createTemplatePreview(this.template.sections[0]?.content);
             previewContainer.appendChild(previewEl);
         } catch (error) {
             const errorEl = document.createElement('div');
@@ -177,7 +181,7 @@ export class TemplateEditorModal extends Modal {
             return;
         }
         
-        if (!this.templateManager.validateTemplate(this.template.template)) {
+        if (!this.templateManager.validateTemplate(this.template.sections[0]?.content)) {
             // Show error
             const notice = document.createElement('div');
             notice.addClass('notice');

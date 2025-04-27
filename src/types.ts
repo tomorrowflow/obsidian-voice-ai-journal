@@ -5,12 +5,17 @@
 /**
  * Interface for journal templates
  */
+export interface TemplateSection {
+	title: string;
+	content: string;
+	prompt: string;
+}
+
 export interface JournalTemplate {
 	id: string;
 	name: string;
 	description: string;
-	template: string;
-	prompt: string;
+	sections: TemplateSection[];
 }
 
 /**

@@ -327,7 +327,7 @@ export class RecordingModal extends Modal {
             
             // Analyze transcription using the template prompt
             const analysisProviderId = this.plugin.settings.aiProviders.analysis;
-            const analysis = await this.aiManager.analyzeText(transcription, selectedTemplate.prompt, analysisProviderId);
+            const analysis = await this.aiManager.analyzeText(transcription, selectedTemplate.sections[0]?.prompt, analysisProviderId);
             
             // Generate variables for template
             const templateVars: Record<string, string> = {
@@ -356,7 +356,7 @@ export class RecordingModal extends Modal {
             }
             
             // Process template
-            const processedContent = this.templateManager.processTemplate(selectedTemplate.template, templateVars);
+            const processedContent = this.templateManager.processTemplate(selectedTemplate.sections[0]?.content, templateVars);
             
             // Generate filename
             const filename = this.templateManager.generateFilename(this.plugin.settings.noteNamingFormat);
