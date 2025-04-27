@@ -1,7 +1,7 @@
-import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
-import type { AIProvider, JournalTemplate } from '../types';
-import { DEFAULT_JOURNAL_TEMPLATE } from './settings';
+import type { AIProvider } from '../types';
+import { TemplateSettingsTab } from './TemplateSettingsTab';
 
 /**
  * Settings tab for Voice AI Journal plugin with tabbed interface
@@ -57,7 +57,7 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 		if (this.activeTab === 'general') {
 			this.renderGeneralTab(contentEl);
 		} else {
-			this.renderTemplatesTab(contentEl);
+			new TemplateSettingsTab(this.app, this.plugin, contentEl);
 		}
 		
 		// Add CSS to style the tabs
@@ -371,510 +371,84 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 	}
 
 	/**
-	 * Render the Templates tab
+	 * Add CSS styles for the tabbed interface
 	 */
-	private renderTemplatesTab(containerEl: HTMLElement): void {
-		containerEl.empty();
-		containerEl.createEl('h3', { text: 'Journal Templates' });
+	private addStyles(): void {
+		// Remove previous styles
+		const prevStyle = document.getElementById('voice-journal-settings-styles');
+		if (prevStyle !== null) {
+			prevStyle.remove();
+		}
 
-        // Ensure templates array exists and always include the default template if missing
-        if (!Array.isArray(this.plugin.settings.templates)) {
-            this.plugin.settings.templates = [];
-        }
+		// Create style element
+		const styleEl = document.createElement('style');
+		styleEl.id = 'voice-journal-settings-styles';
+		// Add styles for tabs
+		styleEl.textContent = `
+			.voice-journal-tab-header {
+				display: flex;
+				border-bottom: 1px solid var(--background-modifier-border);
+				margin-bottom: 20px;
+			}
+			.voice-journal-tab-header button {
+				background: none;
+				border: none;
+				padding: 8px 16px;
+				font-size: 14px;
+				cursor: pointer;
+				position: relative;
+				border-bottom: 2px solid transparent;
+				transition: all 0.2s ease;
+			}
+			.voice-journal-tab-header button:hover {
+				color: var(--text-accent);
+			}
+			.voice-journal-tab-header button.voice-journal-tab-active {
+				color: var(--text-accent);
+				border-bottom: 2px solid var(--text-accent);
+			}
+			.voice-journal-template-editor {
+				margin-top: 20px;
+				padding: 20px;
+				border: 1px solid var(--background-modifier-border);
+				border-radius: 5px;
+			}
+			.voice-journal-new-template {
+				margin-top: 30px;
+			}
+			
+			.voice-journal-template-section {
+				background-color: var(--background-secondary);
+				border-radius: 5px;
+				padding: 10px;
+				margin-bottom: 20px;
+			}
+			
+			.voice-journal-modal-buttons {
+				display: flex;
+				justify-content: flex-end;
+				gap: 10px;
+				margin-top: 20px;
+			}
+			
+			.voice-journal-modal-buttons button {
+				padding: 6px 12px;
+				border-radius: 4px;
+				font-size: 14px;
+				font-weight: 500;
+				cursor: pointer;
+			}
+			
+			.voice-journal-modal-buttons button.mod-warning {
+				background-color: var(--background-modifier-error);
+				color: var(--text-on-accent);
+			}
+		`;
+		// Add to document
+		document.head.appendChild(styleEl);
+	}
 
-        // Create a local copy of templates for UI rendering
-        let templates = [...this.plugin.settings.templates];
-        
-        // Check if default template exists in the settings
-        if (!this.plugin.settings.templates.some(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id)) {
-            // Add the default template to the actual plugin settings
-            const defaultTemplateCopy = JSON.parse(JSON.stringify(DEFAULT_JOURNAL_TEMPLATE));
-            this.plugin.settings.templates.unshift(defaultTemplateCopy); // Add to beginning of array
-            // Also add to our local copy
-            templates = [defaultTemplateCopy, ...templates];
-            // Save immediately to persist the default template
-            this.plugin.saveSettings().catch(e => console.error('Failed to save default template', e));
-        }
-        // Get template IDs and names
-        const templateIds = templates.map((t: JournalTemplate) => t.id);
-        const templateNames = templates.map((t: JournalTemplate) => t.name);
-
-        // Set initial selected template
-        if (!this.selectedTemplateId || !templateIds.includes(this.selectedTemplateId)) {
-            this.selectedTemplateId = templateIds.length > 0 ? templateIds[0] : null;
-        }
-
-        // Default template setting
-        new Setting(containerEl)
-            .setName('Default Template')
-            .setDesc('The template that will be selected by default when creating a new entry')
-            .addDropdown(dropdown => {
-                // Add template options
-                if (templates.length === 0) {
-                    dropdown.addOption('', 'No templates available');
-                } else {
-                    templateIds.forEach((id, index) => {
-                        dropdown.addOption(id, templateNames[index]);
-                    });
-                }
-                // Set current value
-                dropdown.setValue(this.plugin.settings.defaultTemplate || '');
-                // Handle change
-                dropdown.onChange(async (value) => {
-                    this.plugin.settings.defaultTemplate = value;
-                    await this.plugin.saveSettings();
-                });
-            });
-            
-        // Add a visual separator that matches other settings sections
-        containerEl.createEl('h3', { text: 'Template Management' });
-
-        // Add new template button
-        const newTemplateContainer = containerEl.createEl('div', { cls: 'voice-journal-new-template' });
-        new Setting(newTemplateContainer)
-            .setName('Create New Template')
-            .setDesc('Add a new journal template')
-            .addButton(button => {
-                button.setButtonText('Add Template')
-                    .setCta()
-                    .onClick(async () => {
-                        // Create a new template with default values
-                        const newTemplate: JournalTemplate = {
-                            id: `template-${Date.now()}`,
-                            name: 'New Template',
-                            description: 'A new journal template',
-                            sections: [
-                                {
-                                    title: 'Voice Note',
-                                    content: '{{transcription}}',
-                                    prompt: 'Transcribe the following audio.',
-                                    optional: false
-                                },
-                                {
-                                    title: 'Thoughts',
-                                    content: '{{thoughts}}',
-                                    prompt: 'Analyze the journal entry and extract thoughts.',
-                                    optional: false
-                                }
-                            ],
-                        };
-                        await this.plugin.addTemplate(newTemplate);
-                        this.selectedTemplateId = newTemplate.id;
-                        this.renderTemplatesTab(containerEl);
-                    });
-            })
-            .addButton(button => {
-                button.setButtonText('Clone Template')
-                    .onClick(async () => {
-                        // Find the template to clone (from the default template dropdown)
-                        const sourceTemplateId = this.plugin.settings.defaultTemplate;
-                        const sourceTemplate = templates.find(t => t.id === sourceTemplateId);
-                        
-                        if (sourceTemplate) {
-                            // Create a deep copy of the source template
-                            const clonedTemplate: JournalTemplate = {
-                                id: `template-${Date.now()}`,
-                                name: `${sourceTemplate.name} (Copy)`,
-                                description: sourceTemplate.description,
-                                sections: JSON.parse(JSON.stringify(sourceTemplate.sections || [])),
-                            };
-                            
-                            await this.plugin.addTemplate(clonedTemplate);
-                            this.selectedTemplateId = clonedTemplate.id;
-                            this.renderTemplatesTab(containerEl);
-                        } else {
-                            // Show error if no template is selected
-                            new Notice('Please select a template to clone in the Default Template dropdown');
-                        }
-                    });
-            });
-
-        // Template selector
-        if (templates.length > 0) {
-            new Setting(containerEl)
-                .setName('Edit Template')
-                .setDesc('Select a template to edit')
-                .addDropdown(dropdown => {
-                    templateIds.forEach((id, index) => {
-                        dropdown.addOption(id, templateNames[index]);
-                    });
-                    dropdown.setValue(this.selectedTemplateId || '');
-                    dropdown.onChange((value) => {
-                        this.selectedTemplateId = value;
-                        this.renderTemplatesTab(containerEl); // Refresh to show selected template
-                });
-            });
-    } else {
-        containerEl.createEl('p', { text: 'No templates found. Create your first template below.' });
-    }
-
-    // Template editor
-    if (this.selectedTemplateId) {
-        const template = templates.find((t: JournalTemplate) => t.id === this.selectedTemplateId);
-        if (template) {
-            const templateEl = containerEl.createEl('div', { cls: 'voice-journal-template-editor' });
-            // Make template name editable with bold h2-style label
-            new Setting(templateEl)
-                .setName('Template Name')
-                .setClass('template-name-setting')
-                .then(setting => {
-                    // Style the setting name to look like h2
-                    const nameEl = setting.nameEl;
-                    nameEl.style.fontWeight = 'bold';
-                    nameEl.style.fontSize = 'var(--h4-size)';
-                    nameEl.style.marginBottom = '0.4em';
-                })
-                .addText(text => {
-                    text.setValue(template.name)
-                        .onChange(async (value) => {
-                            template.name = value;
-                            await this.plugin.saveSettings();
-                        });
-                    // Make the input field wider
-                    text.inputEl.style.width = '100%';
-                });
-                
-            // Add button to add more sections (below template name)
-            new Setting(templateEl)
-                .setName('Add Section')
-                .setDesc('Add a new section to this template')
-                .addButton(button => {
-                    button.setButtonText('Add Section')
-                        .setCta()
-                        .onClick(async () => {
-                            // Create a new section with default values
-                            if (!Array.isArray(template.sections)) {
-                                template.sections = [];
-                            }
-                            template.sections.push({
-                                title: 'New Section',
-                                content: '',
-                                prompt: '',
-                                optional: false
-                            });
-                            await this.plugin.saveSettings();
-                            this.renderTemplatesTab(containerEl);
-                        });
-                });
-                
-            // Render all sections of the template
-            if (Array.isArray(template.sections) && template.sections.length > 0) {
-                template.sections.forEach((section, idx) => {
-                    const sectionEl = templateEl.createEl('div', { cls: 'voice-journal-template-section' });
-                    // Add visual separation between sections
-                    sectionEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-                    sectionEl.style.marginBottom = '1.5em';
-                    sectionEl.style.paddingBottom = '1em';
-                    
-                    // Make section title editable with bold styling
-                    new Setting(sectionEl)
-                        .setName('Section Title')
-                        .setClass('section-title-setting')
-                        .then(setting => {
-                            // Style the setting name to look like h4 but bold
-                            const nameEl = setting.nameEl;
-                            nameEl.style.fontWeight = 'bold';
-                            nameEl.style.marginBottom = '0.4em';
-                        })
-                        .addText(text => {
-                            text.setValue(section.title || `Section ${idx + 1}`)
-                                .onChange(async (value) => {
-                                    // Just update the model and save, don't re-render yet
-                                    template.sections[idx].title = value;
-                                    await this.plugin.saveSettings();
-                                });
-                                
-                            // Add blur event to update the dropdown when user leaves the field
-                            text.inputEl.addEventListener('blur', async () => {
-                                // Full re-render is the most reliable way to update the dropdown
-                                // But only do this when the user leaves the field to avoid focus loss
-                                this.renderTemplatesTab(containerEl);
-                            });
-                            // Make the input field wider
-                            text.inputEl.style.width = '100%';
-                        });
-
-                    // Content editor
-                    new Setting(sectionEl)
-                        .setName('Content')
-                        .addTextArea(textarea => {
-                            textarea.setValue(section.content || '');
-                            textarea.inputEl.rows = 4;
-                            textarea.inputEl.style.width = '100%';
-                            textarea.inputEl.style.resize = 'none';
-                            textarea.onChange(async (value) => {
-                                template.sections[idx].content = value;
-                                await this.plugin.saveSettings();
-                            });
-                        });
-
-                    // Prompt editor
-                    new Setting(sectionEl)
-                        .setName('Prompt')
-                        .addTextArea(textarea => {
-                            textarea.setValue(section.prompt || '');
-                            textarea.inputEl.rows = 4;
-                            textarea.inputEl.style.width = '100%';
-                            textarea.inputEl.style.resize = 'none';
-                            textarea.onChange(async (value) => {
-                                template.sections[idx].prompt = value;
-                                await this.plugin.saveSettings();
-                            });
-                        });
-
-                    // Optional section toggle
-                    new Setting(sectionEl)
-                        .setName('Optional Section')
-                        .setDesc('If checked, this section will be treated as optional when using the template.')
-                        .addToggle(toggle => {
-                            toggle.setValue(section.optional ?? false);
-                            toggle.onChange(async (value: boolean) => {
-                                template.sections[idx].optional = value;
-                                await this.plugin.saveSettings();
-                            });
-                        });
-                });
-                
-                // Add section removal UI at the bottom
-                if (template.sections.length > 1) {
-                    const removalContainer = templateEl.createEl('div', { cls: 'section-removal-container' });
-                    
-                    const removalSetting = new Setting(removalContainer)
-                        .setName('Remove Section')
-                        .setDesc('Select and remove a section from this template');
-                    
-                    // Add dropdown to select which section to remove
-                    let selectedSectionIndex = 0;
-                    removalSetting.addDropdown(dropdown => {
-                        // Add each section title to the dropdown
-                        template.sections.forEach((section, idx) => {
-                            dropdown.addOption(idx.toString(), section.title || `Section ${idx + 1}`);
-                        });
-                        
-                        dropdown.setValue(selectedSectionIndex.toString());
-                        dropdown.onChange(value => {
-                            selectedSectionIndex = parseInt(value);
-                        });
-                    });
-                    
-                    // Add button to remove the selected section
-                    removalSetting.addButton(button => {
-                        button.setButtonText('Remove')
-                            .setWarning()
-                            .onClick(async () => {
-                                // Remove the selected section
-                                if (selectedSectionIndex >= 0 && selectedSectionIndex < template.sections.length) {
-                                    template.sections.splice(selectedSectionIndex, 1);
-                                    await this.plugin.saveSettings();
-                                    this.renderTemplatesTab(containerEl);
-                                }
-                            });
-                    });
-                }
-            } else {
-                // No sections: show message and button to add the first section
-                templateEl.createEl('p', { text: 'This template has no sections. Add one below.' });
-                new Setting(templateEl)
-                    .addButton(button => {
-                        button.setButtonText('Add Section')
-                            .setCta()
-                            .onClick(async () => {
-                                template.sections = [
-                                    { title: 'New Section', content: '', prompt: '', optional: false }
-                                ];
-                                await this.plugin.saveSettings();
-                                this.renderTemplatesTab(containerEl);
-                            });
-                    });
-            }
-        }
-        
-        // Add remove or reset template button at the bottom (outside the box)
-        if (this.selectedTemplateId) {
-            const template = templates.find((t: JournalTemplate) => t.id === this.selectedTemplateId);
-            if (template) {
-                if (template.id === DEFAULT_JOURNAL_TEMPLATE.id) {
-                    // Show reset to default button for the default template
-                    new Setting(containerEl)
-                        .setName('Reset Default Template')
-                        .setDesc('Restore the default template settings. This cannot be deleted.')
-                        .addButton(button => {
-                            button.setButtonText('Reset to Default')
-                                .setWarning()
-                                .onClick(() => {
-                                    // Create and open a confirmation modal
-                                    const modal = new Modal(this.app);
-                                    modal.titleEl.setText('Reset Default Template');
-                                    modal.contentEl.createEl('p', {
-                                        text: 'Are you sure you want to reset the default template to its original settings? This cannot be undone.'
-                                    });
-                                    
-                                    // Add buttons
-                                    const buttonContainer = modal.contentEl.createEl('div', {
-                                        cls: 'voice-journal-modal-buttons'
-                                    });
-                                    
-                                    // Cancel button
-                                    const cancelButton = buttonContainer.createEl('button', {
-                                        text: 'Cancel'
-                                    });
-                                    cancelButton.onclick = () => modal.close();
-                                    
-                                    // Reset button
-                                    const resetButton = buttonContainer.createEl('button', {
-                                        text: 'Reset',
-                                        cls: 'mod-warning'
-                                    });
-                                    
-                                    resetButton.onclick = async () => {
-                                        modal.close();
-                                        
-                                        // Completely replace the default template with a fresh copy
-                                        const idx = this.plugin.settings.templates.findIndex(t => t.id === DEFAULT_JOURNAL_TEMPLATE.id);
-                                        if (idx > -1) {
-                                            // Create a fresh deep copy of the default template
-                                            const freshDefaultTemplate = JSON.parse(JSON.stringify(DEFAULT_JOURNAL_TEMPLATE));
-                                            
-                                            // Remove the current template and insert the fresh one at the same position
-                                            this.plugin.settings.templates.splice(idx, 1, freshDefaultTemplate);
-                                            
-                                            // Explicitly set the id to ensure it's valid
-                                            this.plugin.settings.templates[idx].id = DEFAULT_JOURNAL_TEMPLATE.id;
-                                            
-                                            // Save settings and update UI
-                                            try {
-                                                await this.plugin.saveSettings();
-                                                
-                                                // Ensure we select the default template again
-                                                this.selectedTemplateId = DEFAULT_JOURNAL_TEMPLATE.id;
-                                                
-                                                // Force a complete UI refresh
-                                                this.display();
-                                                
-                                                new Notice('Default template has been reset successfully');
-                                            } catch (error) {
-                                                new Notice('Failed to reset template: ' + error);
-                                            }
-                                        } else {
-                                            new Notice('Default template not found, cannot reset');
-                                        }
-                                    };
-                                    
-                                    // Open the modal
-                                    modal.open();
-                                });
-                        });
-                } else {
-                    // Show remove button for non-default templates
-                    new Setting(containerEl)
-                        .setName('Remove Template')
-                        .setDesc('Delete this template')
-                        .addButton(button => {
-                            button.setButtonText('Remove')
-                                .setWarning()
-                                .onClick(async () => {
-                                    // Remove the template from settings
-                                    const templateIndex = this.plugin.settings.templates.findIndex(t => t.id === template.id);
-                                    if (templateIndex > -1) {
-                                        this.plugin.settings.templates.splice(templateIndex, 1);
-                                        await this.plugin.saveSettings();
-                                        // Reset selected template ID
-                                        this.selectedTemplateId = this.plugin.settings.templates.length > 0 
-                                            ? this.plugin.settings.templates[0].id 
-                                            : null;
-                                        // Refresh the view
-                                        this.renderTemplatesTab(containerEl);
-                                    }
-                                });
-                        });
-                }
-            }
-        }
-    }
-
-    // End renderTemplatesTab
-    return;
-}
-
-/**
- * Add CSS styles for the tabbed interface
- */
-private addStyles(): void {
-    // Remove previous styles
-    const prevStyle = document.getElementById('voice-journal-settings-styles');
-    if (prevStyle !== null) {
-        prevStyle.remove();
-    }
-
-    // Create style element
-    const styleEl = document.createElement('style');
-    styleEl.id = 'voice-journal-settings-styles';
-    // Add styles for tabs
-    styleEl.textContent = `
-        .voice-journal-tab-header {
-            display: flex;
-            border-bottom: 1px solid var(--background-modifier-border);
-            margin-bottom: 20px;
-        }
-        .voice-journal-tab-header button {
-            background: none;
-            border: none;
-            padding: 8px 16px;
-            font-size: 14px;
-            cursor: pointer;
-            position: relative;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
-        }
-        .voice-journal-tab-header button:hover {
-            color: var(--text-accent);
-        }
-        .voice-journal-tab-header button.voice-journal-tab-active {
-            color: var(--text-accent);
-            border-bottom: 2px solid var(--text-accent);
-        }
-        .voice-journal-template-editor {
-            margin-top: 20px;
-            padding: 20px;
-            border: 1px solid var(--background-modifier-border);
-            border-radius: 5px;
-        }
-        .voice-journal-new-template {
-            margin-top: 30px;
-        }
-        
-        .voice-journal-template-section {
-            background-color: var(--background-secondary);
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 20px;
-        }
-        
-        .voice-journal-modal-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        .voice-journal-modal-buttons button {
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-        }
-        
-        .voice-journal-modal-buttons button.mod-warning {
-            background-color: var(--background-modifier-error);
-            color: var(--text-on-accent);
-        }
-    `;
-    // Add to document
-    document.head.appendChild(styleEl);
-}
-
-/**
+	/**
 	 * Get all folders in the vault using the Obsidian API
 	 */
 	private getFolders(): string[] {
