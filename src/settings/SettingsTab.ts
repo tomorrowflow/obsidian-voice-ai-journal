@@ -468,7 +468,7 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 					.addTextArea(textarea => {
 						textarea.setValue(template.template);
 						textarea.setPlaceholder('# Journal Entry\n\n{{transcription}}');
-						textarea.inputEl.rows = 10;
+						textarea.inputEl.rows = 5;
 						textarea.inputEl.cols = 50;
 						
 						textarea.onChange(async (value) => {
@@ -483,7 +483,8 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 					.addTextArea(textarea => {
 						textarea.setValue(template.prompt);
 						textarea.setPlaceholder('Analyze this journal entry and...');
-						textarea.inputEl.rows = 4;
+						textarea.inputEl.rows = 5;
+						textarea.inputEl.cols = 50; // Match width with content textarea
 						
 						textarea.onChange(async (value) => {
 							template.prompt = value;
