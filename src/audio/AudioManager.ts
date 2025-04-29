@@ -1,4 +1,4 @@
-import { Notice, TFile } from 'obsidian';
+import { TFile } from 'obsidian';
 import { AudioRecorder, RecordingStatus } from './AudioRecorder';
 
 export interface AudioProcessingOptions {
