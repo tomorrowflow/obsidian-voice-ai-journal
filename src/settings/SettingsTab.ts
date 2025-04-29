@@ -139,13 +139,49 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 		// AI Provider Settings Section
 		containerEl.createEl('h3', { text: 'Transcription & AI Settings' });
 
+		// Create a container for the global system prompt that matches template section styling
+		const globalPromptContainer = containerEl.createEl('div', { cls: 'voice-journal-template-section' });
+		globalPromptContainer.style.backgroundColor = 'var(--background-secondary)';
+		globalPromptContainer.style.borderRadius = '5px';
+		globalPromptContainer.style.padding = '10px';
+		globalPromptContainer.style.marginBottom = '20px';
+
+		// Global system prompt for all LLM interactions
+		new Setting(globalPromptContainer)
+			.setName('Global System Prompt')
+			.setClass('section-title-setting')
+			.then(setting => {
+				setting.nameEl.style.fontWeight = 'bold';
+				setting.nameEl.style.fontSize = 'var(--font-ui-medium)';
+			})
+			.setDesc('Instructions applied to all LLM interactions. This sets the tone and style for all AI responses.')
+			.addTextArea(text => {
+				text.setValue(this.plugin.settings.globalSystemPrompt);
+				text.setPlaceholder('You are an AI assistant helping with journal entries...');
+				
+				// Style the text area to match template sections
+				text.inputEl.rows = 4;
+				text.inputEl.style.width = '100%';
+				text.inputEl.style.resize = 'none';
+				text.inputEl.style.fontFamily = 'var(--font-monospace)';
+				text.inputEl.style.fontSize = 'var(--font-ui-small)';
+				
+				text.onChange(async (value) => {
+					this.plugin.settings.globalSystemPrompt = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		// Check if plugin has AI Providers plugin registered
 		if (!this.plugin.aiProviders) {
+			// If AI Providers not available, show a message
 			new Setting(containerEl)
 				.setName('AI Providers Plugin')
 				.setDesc('This plugin requires the AI Providers plugin to be installed and configured.')
 				.addButton(button => button
 					.setButtonText('Open AI Providers Settings')
 					.onClick(() => {
+						// Show a notice to guide user to the correct settings
 						new Notice('Please go to Settings > Community plugins > AI Providers > Settings to configure the AI integration.');
 					}));
 		} else {
@@ -280,6 +316,33 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				
 				dropdown.onChange(async (value: string) => {
 					this.plugin.settings.transcriptionLanguage = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		// Note output language selection
+		new Setting(containerEl)
+			.setName('Note Output Language')
+			.setDesc('Language for AI responses (auto uses the detected language from transcription)')
+			.addDropdown(dropdown => {
+				// Add common languages - same as transcription language
+				dropdown.addOption('auto', 'Same as transcription')
+				dropdown.addOption('en', 'English')
+				dropdown.addOption('fr', 'French')
+				dropdown.addOption('de', 'German')
+				dropdown.addOption('es', 'Spanish')
+				dropdown.addOption('it', 'Italian')
+				dropdown.addOption('pt', 'Portuguese')
+				dropdown.addOption('nl', 'Dutch')
+				dropdown.addOption('ja', 'Japanese')
+				dropdown.addOption('zh', 'Chinese')
+				dropdown.addOption('ko', 'Korean')
+				dropdown.addOption('ru', 'Russian')
+				
+				dropdown.setValue(this.plugin.settings.outputLanguage);
+				
+				dropdown.onChange(async (value: string) => {
+					this.plugin.settings.outputLanguage = value;
 					await this.plugin.saveSettings();
 				});
 			});

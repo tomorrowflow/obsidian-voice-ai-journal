@@ -16,11 +16,14 @@ export interface VoiceAIJournalSettings {
 		analysis: string | null;
 		mermaidFixer: string | null;
 	};
+	// Global system message for LLM interactions
+	globalSystemPrompt: string;
 
 	// Audio settings
 	audioQuality: 'low' | 'medium' | 'high';
 	automaticSpeechDetection: boolean;
 	transcriptionLanguage: string; // Language for speech recognition
+	outputLanguage: string; // Language for LLM responses
 	selectedMicrophoneId?: string; // Optional ID of the selected microphone device
 
 	// Journal settings
@@ -91,9 +94,11 @@ export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
 		analysis: null,
 		mermaidFixer: null
 	},
+	globalSystemPrompt: 'You are an AI assistant helping with journal entries. Respond in a helpful and thoughtful manner. Format your responses in clear, well-structured Markdown that will render properly in Obsidian.',
 	audioQuality: 'medium',
 	automaticSpeechDetection: true,
 	transcriptionLanguage: 'auto', // Default to auto language detection
+	outputLanguage: 'auto', // Default to auto (use detected language from ASR)
 	selectedMicrophoneId: undefined, // Default to system default microphone
 	noteLocation: '/',
 	noteNamingFormat: 'Journal/{{date:YYYY/MM/YYYY-MM-DD}}',

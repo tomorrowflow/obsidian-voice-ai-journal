@@ -50,8 +50,10 @@ export interface AIProvider {
 export interface AIExecuteOptions {
     provider: AIProvider;
     prompt?: string;
+    systemPrompt?: string;
     messages?: AIMessage[];
     images?: string[];
+    files?: Array<{data: string; type: string; format: string}>;
 }
 
 /**

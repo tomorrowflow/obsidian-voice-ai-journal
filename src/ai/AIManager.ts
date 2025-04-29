@@ -199,6 +199,66 @@ export class AIManager {
      * @param providerId The ID of the AI provider to use
      * @returns The analysis result
      */
+    /**
+     * Get enhanced system prompt with language instructions
+     * @param detectedLanguage Optional language detected from transcription
+     * @returns Enhanced system prompt with language instructions
+     */
+    private getEnhancedSystemPrompt(detectedLanguage?: string): string {
+        if (!this.plugin?.settings) {
+            return '';
+        }
+
+        // Get the base system prompt from settings
+        let systemPrompt = this.plugin.settings.globalSystemPrompt || '';
+        
+        // Determine which language to use for the response
+        const outputLanguage = this.plugin.settings.outputLanguage || 'auto';
+        
+        // If output language is explicitly set (not auto), add language instruction
+        if (outputLanguage !== 'auto') {
+            // Map language codes to full language names for clarity
+            const languageNames: Record<string, string> = {
+                'en': 'English',
+                'fr': 'French',
+                'de': 'German',
+                'es': 'Spanish',
+                'it': 'Italian',
+                'pt': 'Portuguese',
+                'nl': 'Dutch',
+                'ja': 'Japanese',
+                'zh': 'Chinese',
+                'ko': 'Korean',
+                'ru': 'Russian'
+            };
+            
+            const languageName = languageNames[outputLanguage] || outputLanguage;
+            systemPrompt += `\n\nPlease respond in ${languageName} language.`;
+        } 
+        // If set to auto and we have a detected language, use that
+        else if (detectedLanguage && detectedLanguage !== 'auto') {
+            // Map language codes to full language names for clarity
+            const languageNames: Record<string, string> = {
+                'en': 'English',
+                'fr': 'French',
+                'de': 'German',
+                'es': 'Spanish',
+                'it': 'Italian',
+                'pt': 'Portuguese',
+                'nl': 'Dutch',
+                'ja': 'Japanese',
+                'zh': 'Chinese',
+                'ko': 'Korean',
+                'ru': 'Russian'
+            };
+            
+            const languageName = languageNames[detectedLanguage] || detectedLanguage;
+            systemPrompt += `\n\nPlease respond in ${languageName} language.`;
+        }
+        
+        return systemPrompt;
+    }
+
     async analyzeText(text: string, prompt: string, providerId: string | null): Promise<string> {
         if (!this.isInitialized()) {
             throw new Error('AI Providers not initialized');
@@ -211,6 +271,12 @@ export class AIManager {
         }
 
         try {
+            // Get detected language from settings, if any
+            const detectedLanguage = this.plugin?.settings?.transcriptionLanguage;
+            
+            // Get enhanced system prompt with language instructions
+            const systemPrompt = this.getEnhancedSystemPrompt(detectedLanguage);
+            
             // Combine the prompt and text
             const combinedPrompt = `${prompt}\n\nContent to analyze:\n${text}`;
             
@@ -219,6 +285,7 @@ export class AIManager {
             const response = await this.aiProviders.execute({
                 provider: provider,
                 prompt: combinedPrompt,
+                systemPrompt: systemPrompt, // Include the enhanced system prompt
             });
 
             // Handle the response
@@ -260,6 +327,12 @@ export class AIManager {
         }
 
         try {
+            // Get detected language from settings, if any
+            const detectedLanguage = this.plugin?.settings?.transcriptionLanguage;
+            
+            // Get enhanced system prompt with language instructions
+            const systemPrompt = this.getEnhancedSystemPrompt(detectedLanguage);
+            
             const prompt = `
 Create a simple Mermaid chart that visualizes the key concepts, relationships, or themes in the following journal entry.
 Use either a flowchart, mindmap, or another appropriate Mermaid diagram type.
@@ -275,6 +348,7 @@ ${text}
             const response = await this.aiProviders.execute({
                 provider: provider,
                 prompt,
+                systemPrompt: systemPrompt, // Include the global system prompt
             });
 
             // Handle the response
@@ -322,6 +396,12 @@ ${text}
         }
 
         try {
+            // Get detected language from settings, if any
+            const detectedLanguage = this.plugin?.settings?.transcriptionLanguage;
+            
+            // Get enhanced system prompt with language instructions
+            const systemPrompt = this.getEnhancedSystemPrompt(detectedLanguage);
+            
             const prompt = `
 Fix this Mermaid chart code to make it valid. 
 Only respond with the fixed Mermaid code, with no additional explanation.
@@ -335,6 +415,7 @@ ${mermaidCode}
             const response = await this.aiProviders.execute({
                 provider: provider,
                 prompt,
+                systemPrompt: systemPrompt, // Include the global system prompt
             });
 
             // Handle the response
