@@ -1,4 +1,4 @@
-import { Editor, MarkdownView, Notice, Plugin, TFile, Platform } from 'obsidian';
+import { Notice, Plugin, TFile, Platform } from 'obsidian';
 import { initAI, waitForAI } from '@obsidian-ai-providers/sdk';
 
 // Import settings and types
@@ -404,52 +404,46 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			
 			new Notice(`Audio file saved to ${filePath}`);
 			
-			// Get transcription from saved file
+			// Get audio file reference
 			const audioFile = this.app.vault.getAbstractFileByPath(filePath);
 			if (!audioFile || !(audioFile instanceof TFile)) {
 				throw new Error('Could not find the saved audio file');
 			}
 			
 			new Notice('Transcribing audio file...');
-			try {
-				// Use our ASRManager to transcribe the audio file
-				const transcriptionResult = await this.asrManager.transcribeAudioFileFromVault(audioFile);
-				
-				if (!transcriptionResult || !transcriptionResult.text) {
-					throw new Error('Transcription failed or returned empty result');
-				}
-				
-				// Create a note with the transcription
-				const date = new Date();
-				const formattedDate = date.toISOString().split('T')[0];
-				const noteName = `${formattedDate} Transcription.md`;
-				const notePath = `${this.settings.noteLocation}/${noteName}`;
-				
-				// Create the content
-				let content = `# Audio Transcription - ${formattedDate}\n\n`;
-				
-				// Add detected language info if available
-				if (transcriptionResult.detectedLanguage) {
-					content += `*Detected language: ${transcriptionResult.detectedLanguage}*\n\n`;
-				}
-				
-				// Add the transcription text
-				content += `## Transcription\n\n${transcriptionResult.text}\n\n`;
-				
-				// Add link to the audio file
-				content += `[Original Audio](${filePath})\n`;
-				
-				// Create the note
-				const noteFile = await this.app.vault.create(notePath, content);
-				
-				// Open the note
-				await this.app.workspace.getLeaf().openFile(noteFile);
-				
-				new Notice('Audio transcription complete!');
-			} catch (transcriptionError) {
-				console.error('Transcription error:', transcriptionError);
-				new Notice(`Transcription failed: ${transcriptionError instanceof Error ? transcriptionError.message : String(transcriptionError)}`);
+			
+			// Use our ASRManager to transcribe the audio file
+			const transcriptionResult = await this.asrManager.transcribeAudioFileFromVault(audioFile);
+			
+			if (!transcriptionResult || !transcriptionResult.text) {
+				throw new Error('Transcription failed or returned empty result');
 			}
+			
+			// We'll use the default template for now
+			// In the future, we could implement a template selection dialog
+			const selectedTemplateId = this.settings.defaultTemplate;
+			
+			new Notice('Analyzing journal entry...');
+			
+			// Import the shared audio processing utility
+			const { processTranscriptionWithTemplate, createJournalEntry } = await import('./src/utils/audioProcessingUtils');
+			
+			// Generate filename using the template manager
+			const filename = this.templateManager.generateFilename(this.settings.noteNamingFormat);
+			
+			// Process transcription with the selected template
+			const processedContent = await processTranscriptionWithTemplate(
+				this,
+				transcriptionResult.text,
+				selectedTemplateId,
+				filePath,
+				transcriptionResult.detectedLanguage // Pass the full detected language
+			);
+			
+			// Create the journal entry
+			await createJournalEntry(this, processedContent, filename);
+			
+			new Notice('Journal entry processing complete!');
 		} catch (error) {
 			console.error('Failed to process audio file:', error);
 			new Notice(`Failed to process audio file: ${error instanceof Error ? error.message : String(error)}`);

@@ -431,6 +431,19 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+			
+		// Include optional sections toggle
+		new Setting(containerEl)
+			.setName('Include Optional Template Sections')
+			.setDesc('Process and include optional sections from templates in journal entries')
+			.addToggle(toggle => {
+				toggle.setValue(this.plugin.settings.includeOptionalSections);
+				
+				toggle.onChange(async (value) => {
+					this.plugin.settings.includeOptionalSections = value;
+					await this.plugin.saveSettings();
+				});
+			});
 	}
 
 	/**

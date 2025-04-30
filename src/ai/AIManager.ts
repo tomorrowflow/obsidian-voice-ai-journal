@@ -252,14 +252,26 @@ export class AIManager {
                 'ru': 'Russian'
             };
             
-            const languageName = languageNames[detectedLanguage] || detectedLanguage;
+            // Check if it's a language code or already a full language name
+            let languageName: string;
+            
+            if (detectedLanguage.length <= 3 && languageNames[detectedLanguage]) {
+                // It's a language code, convert to full name
+                languageName = languageNames[detectedLanguage];
+                console.log(`Converted language code ${detectedLanguage} to ${languageName}`);
+            } else {
+                // It's already a full language name or unknown format, use as-is
+                languageName = detectedLanguage;
+                console.log(`Using provided language name directly: ${languageName}`);
+            }
+            
             systemPrompt += `\n\nPlease respond in ${languageName} language.`;
         }
         
         return systemPrompt;
     }
 
-    async analyzeText(text: string, prompt: string, providerId: string | null): Promise<string> {
+    async analyzeText(text: string, prompt: string, providerId: string | null, detectedLanguage?: string): Promise<string> {
         if (!this.isInitialized()) {
             throw new Error('AI Providers not initialized');
         }
@@ -271,14 +283,20 @@ export class AIManager {
         }
 
         try {
-            // Get detected language from settings, if any
-            const detectedLanguage = this.plugin?.settings?.transcriptionLanguage;
+            // If no detected language parameter was provided, fall back to settings
+            const languageToUse = detectedLanguage || this.plugin?.settings?.transcriptionLanguage;
             
             // Get enhanced system prompt with language instructions
-            const systemPrompt = this.getEnhancedSystemPrompt(detectedLanguage);
+            const systemPrompt = this.getEnhancedSystemPrompt(languageToUse);
             
             // Combine the prompt and text
             const combinedPrompt = `${prompt}\n\nContent to analyze:\n${text}`;
+            
+            // Log the prompts being sent to the LLM
+            console.log('======== PROMPT SENT TO LLM ========');
+            console.log(`SYSTEM PROMPT: ${systemPrompt.substring(0, 250)}...`);
+            console.log(`SECTION PROMPT: ${prompt.substring(0, 250)}...`);
+            console.log(`CONTENT LENGTH: ${text.length} characters`);
             
             // Execute the analysis using AI Providers
             if (!this.aiProviders) throw new Error('AI Providers not available');
@@ -294,8 +312,11 @@ export class AIManager {
                     // Simply listen for data events
                 });
                 
-                response.onEnd((text: string) => {
-                    resolve(text);
+                response.onEnd((responseText: string) => {
+                    // Remove any <think>...</think> sections from the LLM response
+                    const cleanedText = this.removeThinkingSections(responseText);
+                    resolve(cleanedText);
+                    console.log('LLM Analysis complete, length:', cleanedText.length);
                 });
                 
                 response.onError((error: Error) => {
@@ -439,5 +460,16 @@ ${mermaidCode}
             console.error('Mermaid fix error:', error);
             throw new Error(`Failed to fix mermaid chart: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /**
+     * Removes <think>...</think> sections from the LLM response
+     * 
+     * @param text The original LLM response text
+     * @returns The cleaned text without thinking sections
+     */
+    private removeThinkingSections(text: string): string {
+        // Use regex to remove any content between <think> and </think> tags, including the tags
+        return text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     }
 }

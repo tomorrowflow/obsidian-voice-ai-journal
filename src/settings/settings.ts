@@ -33,7 +33,8 @@ export interface VoiceAIJournalSettings {
 	appendToExistingNote: boolean;
 
 	// UI settings
-	
+	includeOptionalSections: boolean;
+
 	// Version tracking
 	_version: number;
 }
@@ -104,5 +105,6 @@ export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
 	noteNamingFormat: 'Journal/{{date:YYYY/MM/YYYY-MM-DD}}',
 	recordingsLocation: '/Recordings',
 	appendToExistingNote: false,
+	includeOptionalSections: true, // Include optional template sections by default
 	_version: 1
 };

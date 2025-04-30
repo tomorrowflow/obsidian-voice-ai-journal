@@ -309,15 +309,33 @@ export class RecordingModal extends Modal {
             // Show progress
             new Notice('Transcribing audio...');
             
-            // Get selected template
-            const selectedTemplate = this.plugin.getTemplateById(this.selectedTemplateId);
-            if (!selectedTemplate) {
-                throw new Error('Selected template not found');
-            }
-            
             // Transcribe audio
             const transcriptionProviderId = this.plugin.settings.aiProviders.transcription;
-            const transcription = await this.aiManager.transcribeAudio(audioBlob, transcriptionProviderId);
+            const transcriptionResult = await this.aiManager.transcribeAudio(audioBlob, transcriptionProviderId);
+            
+            // Check if we have a valid transcription
+            let transcription: string;
+            let detectedLanguage: string | undefined;
+            
+            // Handle different possible return types from transcribeAudio
+            if (typeof transcriptionResult === 'string') {
+                // Simple string result
+                transcription = transcriptionResult;
+                // No detected language info
+            } else if (transcriptionResult && typeof transcriptionResult === 'object') {
+                // Object with text and possibly detectedLanguage
+                // Type assertion to help TypeScript understand the structure
+                const result = transcriptionResult as { text?: string; detectedLanguage?: string };
+                transcription = result.text || '';
+                detectedLanguage = result.detectedLanguage;
+                
+                if (detectedLanguage) {
+                    console.log(`Detected language: ${detectedLanguage}`);
+                    new Notice(`Detected language: ${detectedLanguage}`);
+                }
+            } else {
+                throw new Error('Transcription failed or returned invalid result');
+            }
             
             if (!transcription || transcription.trim() === '') {
                 throw new Error('Transcription failed or returned empty result');
@@ -325,44 +343,28 @@ export class RecordingModal extends Modal {
             
             new Notice('Analyzing journal entry...');
             
-            // Analyze transcription using the template prompt
-            const analysisProviderId = this.plugin.settings.aiProviders.analysis;
-            const analysis = await this.aiManager.analyzeText(transcription, selectedTemplate.sections[0]?.prompt, analysisProviderId);
-            
-            // Generate variables for template
-            const templateVars: Record<string, string> = {
-                transcription: transcription,
-                summary: '',
-                insights: '',
-                gratitude_points: '',
-                positive_moments: ''
-            };
-            
-            // Try to extract sections from the analysis based on headers
-            const summaryMatch = analysis.match(/(?:^|\n)#*\s*Summary\s*\n([\s\S]*?)(?:\n#|$)/i);
-            const insightsMatch = analysis.match(/(?:^|\n)#*\s*Insights\s*\n([\s\S]*?)(?:\n#|$)/i);
-            const gratitudeMatch = analysis.match(/(?:^|\n)#*\s*(?:Gratitude|What.*?Grateful\s*For)\s*\n([\s\S]*?)(?:\n#|$)/i);
-            const positiveMomentsMatch = analysis.match(/(?:^|\n)#*\s*Positive\s*Moments\s*\n([\s\S]*?)(?:\n#|$)/i);
-            
-            // Populate template variables from matches
-            if (summaryMatch && summaryMatch[1]) templateVars.summary = summaryMatch[1].trim();
-            if (insightsMatch && insightsMatch[1]) templateVars.insights = insightsMatch[1].trim();
-            if (gratitudeMatch && gratitudeMatch[1]) templateVars.gratitude_points = gratitudeMatch[1].trim();
-            if (positiveMomentsMatch && positiveMomentsMatch[1]) templateVars.positive_moments = positiveMomentsMatch[1].trim();
-            
-            // If no structured parts were found, use the whole analysis as summary
-            if (!summaryMatch && !insightsMatch && !gratitudeMatch && !positiveMomentsMatch) {
-                templateVars.summary = analysis.trim();
-            }
-            
-            // Process template
-            const processedContent = this.templateManager.processTemplate(selectedTemplate.sections[0]?.context, templateVars);
+            // Import the shared audio processing utility
+            const { processTranscriptionWithTemplate, createJournalEntry } = await import('../utils/audioProcessingUtils');
             
             // Generate filename
             const filename = this.templateManager.generateFilename(this.plugin.settings.noteNamingFormat);
             
-            // Create the journal entry file
-            await this.createJournalEntry(filename, processedContent, audioBlob);
+            // Process transcription with the selected template
+            const processedContent = await processTranscriptionWithTemplate(
+                this.plugin,
+                transcription,
+                this.selectedTemplateId,
+                undefined, // No audio filename
+                detectedLanguage // Pass the detected language if available
+            );
+            
+            // Create the journal entry
+            await createJournalEntry(this.plugin, processedContent, filename);
+            
+            // Save audio file if needed
+            const audioFilename = `${filename}${this.audioRecorder.getFileExtension()}`;
+            const audioFilePath = `${this.plugin.settings.recordingsLocation}/${audioFilename}`.replace(/\/+/g, '/');
+            await this.saveAudioFile(audioBlob, audioFilePath);
             
             new Notice(`Journal entry created: ${filename}`);
         } catch (error) {
