@@ -292,12 +292,6 @@ export class AIManager {
             // Combine the prompt and text
             const combinedPrompt = `${prompt}\n\nContent to analyze:\n${text}`;
             
-            // Log the prompts being sent to the LLM
-            console.log('======== PROMPT SENT TO LLM ========');
-            console.log(`SYSTEM PROMPT: ${systemPrompt.substring(0, 250)}...`);
-            console.log(`SECTION PROMPT: ${prompt.substring(0, 250)}...`);
-            console.log(`CONTENT LENGTH: ${text.length} characters`);
-            
             // Execute the analysis using AI Providers
             if (!this.aiProviders) throw new Error('AI Providers not available');
             const response = await this.aiProviders.execute({
@@ -316,7 +310,7 @@ export class AIManager {
                     // Remove any <think>...</think> sections from the LLM response
                     const cleanedText = this.removeThinkingSections(responseText);
                     resolve(cleanedText);
-                    console.log('LLM Analysis complete, length:', cleanedText.length);
+                    console.log('LLM Analysis complete:', cleanedText);
                 });
                 
                 response.onError((error: Error) => {

@@ -51,32 +51,39 @@ export const DEFAULT_JOURNAL_TEMPLATE: JournalTemplate = {
 			title: "Summary",
 			context: '# Zusammenfassung\n\n{{response}}',
 			optional: false,
-			prompt: "You are a professional business analyst summarizing a transcript of a business discussion.  Provide a concise summary of the key points discussed in Markdown format.  Use bullet points for clarity. Focus on actionable information and decisions made.  Use `<h2>` for the section header and smaller headers (`<h3>`, `<h4>`) for subtopics within the summary. Limit the summary to approximately 150-200 words.",
+			prompt: "Think step-by-step: First, analyze the transcript to identify core themes, key points, and actionable takeaways. Second, organize these into a concise, structured summary. Use h3 headers for sub-sections if needed. Format as bullet points with clear, actionable language. Avoid markdown beyond basic lists and headers. Example: '## Summary' followed by '- Key point 1', '- Key point 2'."
 		},
 		{
 			title: "Insights",
 			context: '# Erkenntnisse\n\n{{response}}',
 			optional: false,
-			prompt: "You are a strategic business advisor.  Analyze the transcript and identify key insights and potential improvements.  Present your insights in Markdown format. Start with a short paragraph (2-3 sentences) summarizing the overall themes. Follow this with bullet points detailing specific insights and suggested enhancements.  Include potential areas for follow-up or further investigation. Use `<h2>` for the section header and smaller headers for subtopics.  Limit the insights section to around 200-250 words.",
+			prompt: "Think deeply: First, reflect on the transcript to identify patterns, contradictions, or opportunities. Second, evaluate how these insights align with your goals. Third, structure your thoughts into a 1-2 paragraph analysis. Finally, add bullet points for actionable improvements. Use h3 headers for sub-sections if needed. Example: '## Key Insight: [Topic]' followed by '### Actionable Improvement: [Detail]'."
 		},
 		{
 			title: "Mermaid Chart",
 			context: '```mermaid\n{{response}}\n```',
 			optional: false,
-			prompt: "Generate a valid Unicode Mermaid chart representing a concept map derived from the transcript. The chart should visually connect key concepts, insights, and statements from the speaker. Use a top-down structure for clarity. Employ a colorful style for better readability.  **Crucially, ONLY output the Mermaid chart code itself. Do not include any surrounding text or markdown formatting.**  **Strictly avoid the following characters within node labels:** newlines, tabs, commas, apostrophes, quotes, and any special characters that could break the Mermaid syntax. If a quote is necessary, represent it as `#quot;`.  The chart should be concise and easy to understand.",
+			prompt: "Think methodically: First, parse the transcript to identify explicit or implicit questions. Second, formulate answers based on the content and your expertise. Third, structure responses with clear, concise language. Example: 'Q: _Question_ \n Answer'. Avoid assumptions beyond the transcript."
 		},
 		{
 			title: "Answered Questions",
 			context: '# Beantwortete Fragen\n\n{{response}}',
 			optional: true,
-			prompt: "If the transcript contains direct questions or requests addressed to you (the AI assistant), summarize each question in a concise heading (using `<h3>` or `<h4>`).  Immediately below each question heading, provide a clear and concise answer or response, formatted in Markdown.  Maintain a conversational and helpful tone. If no questions are present, this section should remain empty.",
+			prompt: "Think methodically: First, parse the transcript to identify explicit or implicit questions. Second, formulate answers based on the content and your expertise. Third, structure responses with clear, concise language. Example: '### Q: Question \n A: Answer'. Avoid assumptions beyond the transcript."
 		},
 		{
 			title: "Todos",
 			context: '# Todos\n\n{{response}}',
 			optional: true,
-			prompt: "Extract all actionable tasks, follow-up items, or commitments mentioned in the transcript. Present these as a Markdown checklist (e.g., `- [ ] Task description`).  Only include items that are clearly defined and require specific action.  If no actionable tasks are found, output the following text: 'No actionable tasks identified in this transcript.'",
+			prompt: "Think strategically: First, identify tasks or decisions requiring follow-up. Second, verify each item is actionable (specific, measurable, time-bound). Third, list them in points with priorities. Example: '- [ ] Task (Priority: High, Deadline: Date)'. Avoid vague statements like 'improve performance'; focus on concrete steps."
 		}
+		/*,
+		{
+			title: "Reflection",
+			context: '# Reflektion\n\n{{response}}',
+			optional: true,
+			prompt: "Think critically: First, evaluate how the transcript aligns with your goals, challenges, or gaps. Second, reflect on key takeaways. Third, summarize your personal insights. Use h3 headers for sub-sections if needed. Example: '## Key Takeaway: [Summary]' followed by '### Personal Reflection: [Details]'."		
+		}*/
 	],
 };
 
