@@ -1,5 +1,6 @@
-import { App, Modal, Notice, TFile } from 'obsidian';
+import { App, Modal, Notice } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
+import { storeFileWithStructure } from '../utils/fileStoreUtils';
 import { AudioRecorder, type RecordingStatus } from '../audio/AudioRecorder';
 import { AIManager } from '../ai/AIManager';
 import { TemplateManager } from '../templates/TemplateManager';
@@ -346,11 +347,20 @@ export class RecordingModal extends Modal {
             if (!transcription || transcription.trim() === '') {
                 throw new Error('Transcription failed or returned empty result');
             }
-            
+
+            // Save the transcript immediately after receiving it
+            const { storeTranscriptAsMarkdown } = await import('../utils/storeTranscriptAsMarkdown');
+            await storeTranscriptAsMarkdown(
+                this.plugin,
+                transcription,
+                '', // baseFileName not needed, handled by fileStoreUtils
+                new Date()
+            );
+
             new Notice('Analyzing journal entry...');
             
             // Import the shared audio processing utility
-            const { processTranscriptionWithTemplate, createJournalEntry } = await import('../utils/audioProcessingUtils');
+            const { processTranscriptionWithTemplate } = await import('../utils/audioProcessingUtils');
             
             // Generate filename
             const filename = this.templateManager.generateFilename(this.plugin.settings.noteNamingFormat);
@@ -366,74 +376,28 @@ export class RecordingModal extends Modal {
             );
             
             // Create the journal entry
-            await createJournalEntry(this.plugin, processedContent, filename);
-            
-            // Save audio file if needed
-            const audioFilename = `${filename}${this.audioRecorder.getFileExtension()}`;
-            const audioFilePath = `${this.plugin.settings.recordingsLocation}/${audioFilename}`.replace(/\/+/g, '/');
-            await this.saveAudioFile(audioBlob, audioFilePath);
-            
+            // Store note and audio file using the same date (now)
+            const entryDate = new Date();
+            await storeFileWithStructure({
+                plugin: this.plugin,
+                type: 'note',
+                baseFileName: filename,
+                content: processedContent,
+                date: entryDate,
+                extension: '.md',
+            });
+            await storeFileWithStructure({
+                plugin: this.plugin,
+                type: 'audio',
+                baseFileName: filename,
+                content: await audioBlob.arrayBuffer(),
+                date: entryDate,
+                extension: this.audioRecorder.getFileExtension(),
+            });
             new Notice(`Journal entry created: ${filename}`);
         } catch (error) {
             console.error('Processing error:', error);
             throw error;
-        }
-    }
-
-    /**
-     * Create a new journal entry with the processed content
-     */
-    private async createJournalEntry(filename: string, content: string, audioBlob: Blob) {
-        try {
-            // Make sure the directory exists
-            const filePath = `${this.plugin.settings.noteLocation}/${filename}.md`.replace(/\/+/g, '/');
-            await this.ensureDirectoryExists(filePath);
-            
-            // Check if file exists and handle according to settings
-            const fileExists = await this.app.vault.adapter.exists(filePath);
-            
-            if (fileExists && this.plugin.settings.appendToExistingNote) {
-                // Append to existing file
-                const existingContent = await this.app.vault.adapter.read(filePath);
-                const newContent = `${existingContent}\n\n${content}`;
-                await this.app.vault.adapter.write(filePath, newContent);
-            } else {
-                // Create new file
-                await this.app.vault.create(filePath, content);
-            }
-            
-            // Save audio recording if available
-            if (audioBlob) {
-                const audioFilename = `${filename}${this.audioRecorder.getFileExtension()}`;
-                const audioFilePath = `${this.plugin.settings.noteLocation}/${audioFilename}`.replace(/\/+/g, '/');
-                
-                await this.saveAudioFile(audioBlob, audioFilePath);
-            }
-            
-            // Open the file
-            const file = this.app.vault.getAbstractFileByPath(filePath);
-            if (file && file instanceof TFile) {
-                await this.app.workspace.getLeaf().openFile(file);
-            }
-        } catch (error) {
-            console.error('Error creating journal entry:', error);
-            throw new Error(`Failed to create journal entry: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    /**
-     * Save the audio file to the vault
-     */
-    private async saveAudioFile(audioBlob: Blob, filePath: string) {
-        try {
-            // Convert blob to array buffer
-            const arrayBuffer = await audioBlob.arrayBuffer();
-            
-            // Create the file
-            await this.app.vault.createBinary(filePath, arrayBuffer);
-        } catch (error) {
-            console.error('Error saving audio file:', error);
-            new Notice(`Failed to save audio recording: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

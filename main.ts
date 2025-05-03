@@ -12,6 +12,7 @@ import { RecordingManager, RecordingState } from './src/recording/RecordingManag
 import { RecordingModal } from './src/ui/modals/RecordingModal';
 import { TemplateManager } from './src/templates/TemplateManager';
 import { FileService } from './src/services/FileService';
+import { storeTranscriptAsMarkdown } from './src/utils/storeTranscriptAsMarkdown';
 import './src/styles.css';
 import './src/ui/styles/recording-modal.css';
 
@@ -83,6 +84,9 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	 * @param options Options for processing the recording
 	 */
 	async stopAndProcess(options: RecordingProcessOptions): Promise<void> {
+	// ...rest of method...
+	// After transcription, store transcript as markdown
+	// (Implementation added below)
 		try {
 			// Show processing notice
 			new Notice('Voice AI Journal: Processing recording...');
@@ -92,7 +96,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			
 			// Get the file extension for the audio
 			const fileExt = this.recordingManager.getRecordingFileExtension().substring(1); // Remove the dot
-			
+
 			// Get recordings location from settings
 			const recordingsFolder = this.settings.recordingsLocation || 'Recordings';
 			
@@ -165,7 +169,15 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				
 				// Create the note
 				const noteFile = await this.app.vault.create(notePath, content);
-				
+
+				// Store the raw transcript as a markdown note (new feature)
+				try {
+					const transcriptBaseName = noteFile.basename || noteFile.name.replace(/\.md$/, '');
+					await storeTranscriptAsMarkdown(this, transcriptionResult.text, transcriptBaseName);
+				} catch (err) {
+					console.error('Failed to save transcript as markdown:', err);
+				}
+
 				// Open the note
 				await this.app.workspace.getLeaf().openFile(noteFile);
 			} else {
@@ -382,30 +394,27 @@ export default class VoiceAIJournalPlugin extends Plugin {
 		try {
 			new Notice(`Processing audio file: ${file.name}`);
 			
-			// Get recordings location from settings
-			const recordingsFolder = this.settings.recordingsLocation || '/Recordings';
+			// Convert File to ArrayBuffer for saving
+			const buffer = await file.arrayBuffer();
 			
-			// Create folder if it doesn't exist
-			await this.fileService.ensureFolderExists(recordingsFolder);
-			
-			// Generate a filename with timestamp to avoid duplicates
-			const timestamp = new Date().toISOString().replace(/[:T-]/g, '').slice(0, 14);
 			// Extract file extension from file name
 			const fileExt = file.name.split('.').pop() || 'mp3';
-			const fileName = `recording-${timestamp}.${fileExt}`;
-			const filePath = `${recordingsFolder}/${fileName}`;
 			
-			// Convert File to ArrayBuffer
-			const buffer = await file.arrayBuffer();
-			const array = new Uint8Array(buffer);
+			// Save the audio file using our unified file structure
+			const { storeFileWithStructure } = await import('./src/utils/fileStoreUtils');
+			const audioDate = new Date();
 			
-			// Save to vault
-			await this.app.vault.createBinary(filePath, array);
+			// Store the audio file with the structured path
+			const audioFile = await storeFileWithStructure({
+				plugin: this,
+				type: 'audio',
+				baseFileName: '', // Empty as filename is generated in buildStructuredPath
+				content: buffer,
+				date: audioDate,
+				extension: `.${fileExt}`
+			});
 			
-			new Notice(`Audio file saved to ${filePath}`);
-			
-			// Get audio file reference
-			const audioFile = this.app.vault.getAbstractFileByPath(filePath);
+			new Notice(`Audio file saved successfully`);
 			if (!audioFile || !(audioFile instanceof TFile)) {
 				throw new Error('Could not find the saved audio file');
 			}
@@ -417,6 +426,14 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			
 			if (!transcriptionResult || !transcriptionResult.text) {
 				throw new Error('Transcription failed or returned empty result');
+			}
+			
+			// Store the raw transcript immediately after receiving it
+			try {
+				await storeTranscriptAsMarkdown(this, transcriptionResult.text, '', audioDate);
+				new Notice('Transcript saved successfully');
+			} catch (err) {
+				console.error('Failed to save transcript as markdown:', err);
 			}
 			
 			// We'll use the default template for now
@@ -436,11 +453,13 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				this,
 				transcriptionResult.text,
 				selectedTemplateId,
-				filePath,
+				audioFile ? audioFile.path : undefined,
 				transcriptionResult.detectedLanguage, // Pass the full detected language name
 				transcriptionResult.languageCode // Pass the language code
 			);
 			
+			// Transcript was already saved immediately after receiving it
+
 			// Create the journal entry
 			await createJournalEntry(this, processedContent, filename);
 			

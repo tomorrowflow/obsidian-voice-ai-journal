@@ -4,6 +4,7 @@ import { JournalTemplate } from '../types';
  * Interface for plugin settings
  */
 export interface VoiceAIJournalSettings {
+	transcriptsLocation: string; // Folder to store transcript markdown files
 	// Template settings
 	templates: JournalTemplate[];
 	defaultTemplate: string;
@@ -91,6 +92,7 @@ export const DEFAULT_JOURNAL_TEMPLATE: JournalTemplate = {
  * Default plugin settings
  */
 export const DEFAULT_SETTINGS: VoiceAIJournalSettings = {
+	transcriptsLocation: '/Transcripts',
 	templates: [
 		DEFAULT_JOURNAL_TEMPLATE,
 	],

@@ -76,17 +76,43 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 		// Audio Settings Section first
 		containerEl.createEl('h3', { text: 'Audio & Recording Settings' });
 
+		// Recordings Location
+		new Setting(containerEl)
+			.setName('Recordings Location')
+			.setDesc('Select the folder where audio recordings will be stored')
+			.addDropdown((dropdown) => {
+				const folders = this.getFolders();
+				folders.forEach(folder => dropdown.addOption(folder, folder));
+				dropdown.setValue(this.plugin.settings.recordingsLocation || '/Recordings');
+				dropdown.onChange(async (value: string) => {
+					this.plugin.settings.recordingsLocation = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		// Transcripts Location
+		new Setting(containerEl)
+			.setName('Transcripts Location')
+			.setDesc('Select the folder where transcript markdown notes will be stored')
+			.addDropdown((dropdown) => {
+				const folders = this.getFolders();
+				folders.forEach(folder => dropdown.addOption(folder, folder));
+				dropdown.setValue(this.plugin.settings.transcriptsLocation || '/Transcripts');
+				dropdown.onChange(async (value: string) => {
+					this.plugin.settings.transcriptsLocation = value;
+					await this.plugin.saveSettings();
+				});
+			});
+
 		// Audio quality selection
 		new Setting(containerEl)
 			.setName('Audio Quality')
 			.setDesc('Higher quality records more data but creates larger files')
-			.addDropdown(dropdown => {
-				dropdown.addOption('low', 'Low (8kHz, mono)')
-				dropdown.addOption('medium', 'Medium (16kHz, mono)')
-				dropdown.addOption('high', 'High (44.1kHz, stereo)')
-				
+			.addDropdown((dropdown) => {
+				dropdown.addOption('low', 'Low (8kHz, mono)');
+				dropdown.addOption('medium', 'Medium (16kHz, mono)');
+				dropdown.addOption('high', 'High (44.1kHz, stereo)');
 				dropdown.setValue(this.plugin.settings.audioQuality);
-				
 				dropdown.onChange(async (value: 'low' | 'medium' | 'high') => {
 					this.plugin.settings.audioQuality = value;
 					await this.plugin.saveSettings();
@@ -375,32 +401,6 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				dropdown.onChange(async (value) => {
 					console.log('Folder changed to:', value);
 					this.plugin.settings.noteLocation = value;
-					await this.plugin.saveSettings();
-				});
-			});
-
-		new Setting(containerEl)
-			.setName('Recordings Location')
-			.setDesc('Where to save your audio recordings (mp3/m4a files)')
-			.addDropdown(dropdown => {
-				// Add root folder option
-				dropdown.addOption('/', 'Vault root folder');
-				
-				// Get the latest folders from the vault
-				const folders = this.getFolders();
-				
-				// Add all found folders
-				folders.forEach((folder: string) => {
-					dropdown.addOption(folder, folder);
-				});
-				
-				// Set current value
-				const currentValue = this.plugin.settings.recordingsLocation || '/';
-				dropdown.setValue(currentValue);
-				
-				// Handle change
-				dropdown.onChange(async (value) => {
-					this.plugin.settings.recordingsLocation = value;
 					await this.plugin.saveSettings();
 				});
 			});
