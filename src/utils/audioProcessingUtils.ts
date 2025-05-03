@@ -36,12 +36,22 @@ export async function processTranscriptionWithTemplate(
         // Final journal content to be built section by section
         let journalContent = '';
         
+        // Special token to indicate no results for optional sections
+        const NO_RESULTS_TOKEN = "[[NO_RESULTS_FOR_OPTIONAL_SECTION]]";
+        
         // Process each template section
         if (selectedTemplate.sections.length > 0) {
+            console.log(`[DEBUG TEMPLATE] Processing template: ${selectedTemplate.name} with ${selectedTemplate.sections.length} sections`);
+            
             // Iterate through each section in the template
             for (const section of selectedTemplate.sections) {
+                console.log(`[DEBUG TEMPLATE] Processing section: ${section.title}, Optional: ${section.optional}`);
+                // console.log(`[DEBUG TEMPLATE] Section prompt: ${section.prompt?.substring(0, 100)}...`);
+                // console.log(`[DEBUG TEMPLATE] Section context: ${section.context?.substring(0, 100)}...`);
+                
                 // Skip optional sections that shouldn't be included
                 if (section.optional && !plugin.settings.includeOptionalSections) {
+                    console.log(`[DEBUG TEMPLATE] Skipping optional section: ${section.title} (disabled in settings)`);
                     continue;
                 }
                 
@@ -49,16 +59,33 @@ export async function processTranscriptionWithTemplate(
                 if (section.prompt && section.prompt.trim()) {
                     new Notice(`Processing section "${section.title}" with LLM...`);
                     
+                    // Prepare the prompt - add special instructions for optional sections
+                    let sectionPrompt = section.prompt;
+                    if (section.optional) {
+                        // Add instruction for optional sections to return special token if no valid content
+                        sectionPrompt = `If you cannot provide a meaningful response to this optional section, respond ONLY with ${NO_RESULTS_TOKEN} and nothing else. DO NOT try to make up information if there is nothing relevant in the transcription.\n\n${sectionPrompt}`;
+                    }
+                    
+                    // Log which template and section is about to be processed by the LLM
+                    console.log(`[DEBUG LLM PROCESSING] About to process template "${selectedTemplate.name}" section "${section.title}" with LLM...`);
+                    
                     // Get the LLM response for this section
                     const sectionResponse = await plugin.aiManager.analyzeText(
                         transcription, 
-                        section.prompt, 
+                        sectionPrompt, 
                         analysisProviderId,
                         detectedLanguage
                     );
                     
+                    // For optional sections, check if we got the special token
+                    if (section.optional && sectionResponse.trim() === NO_RESULTS_TOKEN) {
+                        // Skip this section entirely if we got the no results token
+                        console.log(`Skipping optional section "${section.title}" as LLM returned no results token`);
+                        continue;
+                    }
+                    
                     // Add this response to template variables
-                    templateVars[section.title.toLowerCase().replace(/\\s+/g, '_')] = sectionResponse;
+                    templateVars[section.title.toLowerCase().replace(/\s+/g, '_')] = sectionResponse;
                     
                     // Add the raw response as 'response' for this section's context
                     templateVars['response'] = sectionResponse;
@@ -71,6 +98,9 @@ export async function processTranscriptionWithTemplate(
                     
                     // Add to the final journal content
                     journalContent += sectionContent;
+                    
+                    // Log final content that was added from this section
+                    console.log(`[DEBUG TEMPLATE] Added content from section "${section.title}", length: ${sectionContent.length} chars`);
                 }
                 // If there's a context but no prompt, just process the context with existing variables
                 else if (section.context && section.context.trim()) {
@@ -79,6 +109,10 @@ export async function processTranscriptionWithTemplate(
                         templateVars
                     );
                     journalContent += sectionContent;
+                    
+                    // Log final content that was added from this context-only section
+                    console.log(`[DEBUG TEMPLATE] Added content from context-only section "${section.title}", length: ${sectionContent.length} chars`);
+                    console.log(`[DEBUG TEMPLATE] First 100 chars of context-only section: ${sectionContent.substring(0, 100)}...`);
                 }
             }
         }
@@ -93,6 +127,10 @@ export async function processTranscriptionWithTemplate(
         if (audioFileName) {
             journalContent += `\n[Original Audio](${audioFileName})\n`;
         }
+        
+        // Log full journal content at the end
+        console.log(`[DEBUG TEMPLATE] Final journal content length: ${journalContent.length} chars`);
+        console.log(`[DEBUG TEMPLATE] Last 200 chars of journal content: ${journalContent.substring(Math.max(0, journalContent.length - 200))}`);
         
         return journalContent;
     } catch (error) {

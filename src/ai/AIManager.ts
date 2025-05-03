@@ -288,16 +288,24 @@ export class AIManager {
             
             // Get enhanced system prompt with language instructions
             const systemPrompt = this.getEnhancedSystemPrompt(languageToUse);
-            
-            // Combine the prompt and text
-            const combinedPrompt = `${prompt}\n\nContent to analyze:\n${text}`;
-            
-            // Execute the analysis using AI Providers
+
+            // Prepare messages array for LLM (system + user roles)
+            const messages: { role: 'system' | 'user'; content: string }[] = [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: `${prompt}\n\nContent to analyze:\n${text}` }
+            ];
+
+            // Log the messages array for debugging
+            console.log(`[DEBUG PROMPTS] Messages array to LLM:`);
+            messages.forEach((msg, idx) => {
+                console.log(`  [${idx}] role: ${msg.role}, content: ${msg.content.substring(0, 100)} ... ${msg.content.substring(msg.content.length - 100)}`);
+            });
+
+            // Execute the analysis using AI Providers (messages format)
             if (!this.aiProviders) throw new Error('AI Providers not available');
             const response = await this.aiProviders.execute({
                 provider: provider,
-                prompt: combinedPrompt,
-                systemPrompt: systemPrompt, // Include the enhanced system prompt
+                messages: messages
             });
 
             // Handle the response
@@ -310,7 +318,7 @@ export class AIManager {
                     // Remove any <think>...</think> sections from the LLM response
                     const cleanedText = this.removeThinkingSections(responseText);
                     resolve(cleanedText);
-                    console.log('LLM Analysis complete:', cleanedText);
+                    console.log(`[DEBUG RESPONSE] Response: ${cleanedText.substring(0, 100)} ... ${cleanedText.substring(cleanedText.length - 100)}`);
                 });
                 
                 response.onError((error: Error) => {
