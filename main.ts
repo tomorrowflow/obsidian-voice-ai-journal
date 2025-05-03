@@ -437,7 +437,8 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				transcriptionResult.text,
 				selectedTemplateId,
 				filePath,
-				transcriptionResult.detectedLanguage // Pass the full detected language
+				transcriptionResult.detectedLanguage, // Pass the full detected language name
+				transcriptionResult.languageCode // Pass the language code
 			);
 			
 			// Create the journal entry

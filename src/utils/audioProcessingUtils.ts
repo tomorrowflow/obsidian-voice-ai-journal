@@ -16,7 +16,8 @@ export async function processTranscriptionWithTemplate(
     transcription: string,
     templateId: string,
     audioFileName?: string,
-    detectedLanguage?: string
+    detectedLanguage?: string,
+    languageCode?: string
 ): Promise<string> {
     try {
         // Get selected template
@@ -74,7 +75,8 @@ export async function processTranscriptionWithTemplate(
                         transcription, 
                         sectionPrompt, 
                         analysisProviderId,
-                        detectedLanguage
+                        detectedLanguage,
+                        languageCode
                     );
                     
                     // For optional sections, check if we got the special token

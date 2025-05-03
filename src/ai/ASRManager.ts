@@ -6,7 +6,8 @@ import type VoiceAIJournalPlugin from '../../main';
  */
 export interface TranscriptionResult {
     text: string;
-    detectedLanguage?: string;
+    detectedLanguage?: string; // Full language name (e.g., 'English', 'German')
+    languageCode?: string; // ISO language code (e.g., 'en', 'de')
 }
 
 /**
@@ -126,6 +127,8 @@ export class ASRManager {
             };
             
             // Type assertion needed due to API compatibility issues
+            // Need to use 'as any' here due to potential compatibility issues with AIExecuteOptions
+            // This is a safer approach than creating an incomplete type implementation
             const response = await aiProviders.execute(executeOptions as any);
             
             // Handle the response from AI provider
@@ -183,9 +186,9 @@ export class ASRManager {
      * 
      * @param audioBlob The audio blob to analyze for language detection
      * @param fileExtension The file extension of the audio file
-     * @returns The detected language code
+     * @returns An object with detected language code and name
      */
-    private async detectLanguageWithLocalWhisper(audioBlob: Blob, fileExtension = 'wav'): Promise<string> {
+    private async detectLanguageWithLocalWhisper(audioBlob: Blob, fileExtension = 'wav'): Promise<{code: string, name: string}> {
         // Get the endpoint from settings
         const endpoint = this.plugin.settings.localWhisperEndpoint;
         if (!endpoint) {
@@ -253,23 +256,24 @@ export class ASRManager {
             const result = response.json;
             console.log('Language detection result:', result);
             
-            // IMPORTANT: use language_code instead of detected_language
-            // The API returns both the language name (detected_language) and code (language_code)
-            // We need to use the language code (e.g. 'de', 'en', 'fr') for the ASR request
+            // Return both detected_language and language_code directly from the API
+            // This avoids any need for mapping arrays
             if (result && typeof result === 'object') {
-                if ('language_code' in result && typeof result.language_code === 'string') {
-                    return result.language_code; // Return the language code (e.g., 'en', 'de', 'fr')
-                } else if ('detected_language' in result && typeof result.detected_language === 'string') {
-                    // Fallback to detected_language if language_code is not available
-                    return result.detected_language;
-                }
+                const name = ('detected_language' in result && typeof result.detected_language === 'string') 
+                    ? result.detected_language 
+                    : 'English';
+                const code = ('language_code' in result && typeof result.language_code === 'string') 
+                    ? result.language_code 
+                    : 'en';
+                    
+                return { code, name };
             }
             
-            return 'en'; // Default to English if detection fails
+            return { code: 'en', name: 'English' }; // Default if detection fails
         } catch (error) {
             console.error('Local Whisper language detection error:', error);
             // Return English as fallback if there's an error
-            return 'en';
+            return { code: 'en', name: 'English' };
         }
     }
     
@@ -293,15 +297,18 @@ export class ASRManager {
         
         // First, detect language if set to auto
         let detectedLanguage: string | undefined;
+        let languageCode: string | undefined;
         if (language === 'auto' && this.plugin.settings.transcriptionLanguage === 'auto') {
             new Notice('Voice AI Journal: Detecting audio language...');
             console.log('Language set to auto, performing language detection...');
             try {
-                detectedLanguage = await this.detectLanguageWithLocalWhisper(audioBlob, fileExtension);
-                console.log(`Detected language code: ${detectedLanguage}`);
+                const languageInfo = await this.detectLanguageWithLocalWhisper(audioBlob, fileExtension);
+                detectedLanguage = languageInfo.name;
+                languageCode = languageInfo.code;
+                console.log(`Detected language: ${detectedLanguage} (code: ${languageCode})`);
                 
                 // Log additional debug information
-                console.log(`Using language code '${detectedLanguage}' for transcription`);
+                console.log(`Using language code '${languageCode}' for transcription`);
             } catch (error) {
                 console.warn('Language detection failed, proceeding without language specification:', error);
             }
@@ -346,7 +353,8 @@ export class ASRManager {
             
             // Prepare URL with parameters
             let url = `${baseUrl}/asr?output=json`;
-            const languageToUse = detectedLanguage || (language !== 'auto' ? language : undefined);
+            // We need to use the language code for the ASR API, not the full language name
+            const languageToUse = languageCode || (language !== 'auto' ? language : undefined);
             
             // Add language parameter if we have a language code
             if (languageToUse) {
@@ -410,7 +418,8 @@ export class ASRManager {
             
             return { 
                 text: text,
-                detectedLanguage: detectedLanguage
+                detectedLanguage: detectedLanguage,
+                languageCode: languageCode
             };
         } catch (error) {
             console.error('Local Whisper transcription error:', error);

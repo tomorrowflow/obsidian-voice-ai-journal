@@ -316,21 +316,27 @@ export class RecordingModal extends Modal {
             // Check if we have a valid transcription
             let transcription: string;
             let detectedLanguage: string | undefined;
+            let languageCode: string | undefined;
             
             // Handle different possible return types from transcribeAudio
             if (typeof transcriptionResult === 'string') {
                 // Simple string result
                 transcription = transcriptionResult;
-                // No detected language info
+                // No language info
             } else if (transcriptionResult && typeof transcriptionResult === 'object') {
-                // Object with text and possibly detectedLanguage
+                // Object with text and possibly language information
                 // Type assertion to help TypeScript understand the structure
-                const result = transcriptionResult as { text?: string; detectedLanguage?: string };
+                const result = transcriptionResult as { 
+                    text?: string; 
+                    detectedLanguage?: string; 
+                    languageCode?: string 
+                };
                 transcription = result.text || '';
                 detectedLanguage = result.detectedLanguage;
+                languageCode = result.languageCode;
                 
                 if (detectedLanguage) {
-                    console.log(`Detected language: ${detectedLanguage}`);
+                    console.log(`Detected language: ${detectedLanguage}${languageCode ? ` (code: ${languageCode})` : ''}`);
                     new Notice(`Detected language: ${detectedLanguage}`);
                 }
             } else {
@@ -355,7 +361,8 @@ export class RecordingModal extends Modal {
                 transcription,
                 this.selectedTemplateId,
                 undefined, // No audio filename
-                detectedLanguage // Pass the detected language if available
+                detectedLanguage, // Pass the detected language name if available
+                languageCode // Pass the language code if available
             );
             
             // Create the journal entry

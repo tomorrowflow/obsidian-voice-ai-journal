@@ -217,61 +217,22 @@ export class AIManager {
         
         // If output language is explicitly set (not auto), add language instruction
         if (outputLanguage !== 'auto') {
-            // Map language codes to full language names for clarity
-            const languageNames: Record<string, string> = {
-                'en': 'English',
-                'fr': 'French',
-                'de': 'German',
-                'es': 'Spanish',
-                'it': 'Italian',
-                'pt': 'Portuguese',
-                'nl': 'Dutch',
-                'ja': 'Japanese',
-                'zh': 'Chinese',
-                'ko': 'Korean',
-                'ru': 'Russian'
-            };
-            
-            const languageName = languageNames[outputLanguage] || outputLanguage;
-            systemPrompt += `\n\nPlease respond in ${languageName} language.`;
+            // Just use the provided language setting directly
+            // It's either a language code or name, and the LLM will understand either way
+            systemPrompt += `\n\nPlease respond in ${outputLanguage} language.`;
         } 
         // If set to auto and we have a detected language, use that
         else if (detectedLanguage && detectedLanguage !== 'auto') {
-            // Map language codes to full language names for clarity
-            const languageNames: Record<string, string> = {
-                'en': 'English',
-                'fr': 'French',
-                'de': 'German',
-                'es': 'Spanish',
-                'it': 'Italian',
-                'pt': 'Portuguese',
-                'nl': 'Dutch',
-                'ja': 'Japanese',
-                'zh': 'Chinese',
-                'ko': 'Korean',
-                'ru': 'Russian'
-            };
-            
-            // Check if it's a language code or already a full language name
-            let languageName: string;
-            
-            if (detectedLanguage.length <= 3 && languageNames[detectedLanguage]) {
-                // It's a language code, convert to full name
-                languageName = languageNames[detectedLanguage];
-                console.log(`Converted language code ${detectedLanguage} to ${languageName}`);
-            } else {
-                // It's already a full language name or unknown format, use as-is
-                languageName = detectedLanguage;
-                console.log(`Using provided language name directly: ${languageName}`);
-            }
-            
-            systemPrompt += `\n\nPlease respond in ${languageName} language.`;
+            // Use the detected language directly since it's already the proper language name
+            // from the ASR response (e.g. 'german', 'english', etc.)
+            systemPrompt += `\n\nPlease respond in ${detectedLanguage} language.`;
+            console.log(`Using detected language directly: ${detectedLanguage}`);
         }
         
         return systemPrompt;
     }
 
-    async analyzeText(text: string, prompt: string, providerId: string | null, detectedLanguage?: string): Promise<string> {
+    async analyzeText(text: string, prompt: string, providerId: string | null, detectedLanguage?: string, languageCode?: string): Promise<string> {
         if (!this.isInitialized()) {
             throw new Error('AI Providers not initialized');
         }
