@@ -4,6 +4,14 @@ import type { JournalTemplate } from '../types';
 import { DEFAULT_JOURNAL_TEMPLATE } from './settings';
 
 /**
+ * Interface for file structure representation
+ */
+interface FileStructure {
+    path: string;
+    children?: FileStructure[];
+}
+
+/**
  * Handles rendering and management of the Templates settings tab
  */
 export class TemplateSettingsTab {
@@ -51,8 +59,8 @@ export class TemplateSettingsTab {
 
         // Default Template selector
         new Setting(containerEl)
-            .setName('Default Template')
-            .setDesc('Template selected by default when creating a new entry')
+            .setName('LLM Template')
+            .setDesc('Template used by llm to generate the journal entry')
             .addDropdown(dd => {
                 if (templates.length === 0) dd.addOption('', 'No templates available');
                 else templateIds.forEach((id,i) => dd.addOption(id, templateNames[i]));
@@ -79,7 +87,12 @@ export class TemplateSettingsTab {
             .addButton(b => b.setButtonText('Clone Template').onClick(async () => {
                 const src = templates.find(t => t.id === this.plugin.settings.defaultTemplate);
                 if (src) {
-                    const clone = { ...src, id: `template-${Date.now()}`, sections: JSON.parse(JSON.stringify(src.sections)) } as JournalTemplate;
+                    const clone = { 
+                        ...src, 
+                        id: `template-${Date.now()}`, 
+                        name: `${src.name} (clone)`,
+                        sections: JSON.parse(JSON.stringify(src.sections)) 
+                    } as JournalTemplate;
                     await this.plugin.addTemplate(clone);
                     this.selectedTemplateId = clone.id;
                     this.render();
@@ -205,7 +218,20 @@ export class TemplateSettingsTab {
                         .setName('Remove Template')
                         .addButton(b=>b.setButtonText('Remove').setWarning().onClick(async()=>{
                             const i=this.plugin.settings.templates.findIndex(t=>t.id===tmpl.id);
-                            if(i>-1){ this.plugin.settings.templates.splice(i,1); await this.plugin.saveSettings(); this.selectedTemplateId=this.plugin.settings.templates[0]?.id||null; this.render(); }
+                            if(i>-1){ 
+                                // Remove the template
+                                this.plugin.settings.templates.splice(i,1); 
+                                
+                                // Update the default template if it was the one being deleted
+                                if (this.plugin.settings.defaultTemplate === tmpl.id) {
+                                    // Set to first available template or empty string (not null) to avoid type errors
+                                    this.plugin.settings.defaultTemplate = this.plugin.settings.templates[0]?.id || '';
+                                }
+                                
+                                await this.plugin.saveSettings(); 
+                                this.selectedTemplateId=this.plugin.settings.templates[0]?.id||null; 
+                                this.render(); 
+                            }
                         }));
                 }
             }
@@ -216,9 +242,9 @@ export class TemplateSettingsTab {
      * Get children of a specific folder from a list of abstract files
      */
     private getFolderChildren(
-        abstractFiles: { path: string; children?: any[] }[],
+        abstractFiles: FileStructure[],
         folderPath: string
-    ): { path: string; children?: any[] }[] {
+    ): FileStructure[] {
         if (folderPath === '/') {
             return abstractFiles.filter(file => file.children);
         }
