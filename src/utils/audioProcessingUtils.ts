@@ -1,5 +1,6 @@
 import { Notice, TFile } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
+import { startTimer } from './timerUtils';
 
 /**
  * Extract tags from transcription text using LLM
@@ -12,6 +13,8 @@ export async function extractTags(
     plugin: VoiceAIJournalPlugin,
     transcription: string
 ): Promise<string[]> {
+    // Start timer for tag extraction
+    const tagExtractionTimer = startTimer('Tag Extraction Processing');
     try {
         // Get the AI provider for analysis
         const analysisProviderId = plugin.settings.aiProviders.analysis;
@@ -62,9 +65,12 @@ export async function extractTags(
         }
         
         // Fallback if parsing fails
+        tagExtractionTimer.stop();
+        console.log(`[TIMING] Tag extraction fallback after ${tagExtractionTimer.getFormattedTime()}`);
         return ['vaj'];
     } catch (error) {
-        console.error('Error extracting tags:', error);
+        tagExtractionTimer.stop();
+        console.error(`Error extracting tags after ${tagExtractionTimer.getFormattedTime()}:`, error);
         return ['vaj']; // Return only the default tag on error
     }
 }
@@ -92,6 +98,8 @@ export async function processTranscriptionWithTemplate(
     languageCode?: string
 ): Promise<string> {
     try {
+        // Start overall processing timer
+        const overallTimer = startTimer('Overall Template Processing');
         // Get selected template
         const selectedTemplate = plugin.getTemplateById(templateId);
         if (!selectedTemplate) {
@@ -108,8 +116,10 @@ export async function processTranscriptionWithTemplate(
         
         // Extract tags from the transcription
         new Notice('Extracting tags from transcription...');
+        const tagTimer = startTimer('Tag Extraction');
         const tags = await extractTags(plugin, transcription);
-        console.log('Extracted tags:', tags);
+        console.log(`Extracted tags in ${tagTimer.getFormattedTime()}:`, tags);
+        new Notice(`Tags extracted in ${tagTimer.getFormattedTime()}`);
         
         // Build frontmatter with tags and source files
         let frontmatter = '---\ntags:\n' + tags.map(tag => `  - ${tag}`).join('\n');
@@ -157,6 +167,9 @@ export async function processTranscriptionWithTemplate(
                 if (section.prompt && section.prompt.trim()) {
                     new Notice(`Processing section "${section.title}" with LLM...`);
                     
+                    // Start timer for this section
+                    const sectionTimer = startTimer(`Section: ${section.title}`);
+                    
                     // Prepare the prompt - add special instructions for optional sections
                     let sectionPrompt = section.prompt;
                     if (section.optional) {
@@ -198,19 +211,24 @@ export async function processTranscriptionWithTemplate(
                     // Add to the final journal content
                     journalContent += sectionContent;
                     
-                    // Log final content that was added from this section
-                    console.log(`[DEBUG TEMPLATE] Added content from section "${section.title}", length: ${sectionContent.length} chars`);
+                    // Log timing information for this section
+                    sectionTimer.stop();
+                    console.log(`[TIMING] Section "${section.title}" processed in ${sectionTimer.getFormattedTime()}, length: ${sectionContent.length} chars`);
+                    new Notice(`Section "${section.title}" processed in ${sectionTimer.getFormattedTime()}`);
                 }
                 // If there's a context but no prompt, just process the context with existing variables
                 else if (section.context && section.context.trim()) {
+                    // Start timer for context-only section
+                    const contextSectionTimer = startTimer(`Context-only section: ${section.title}`);
                     const sectionContent = plugin.templateManager.processTemplate(
                         section.context, 
                         templateVars
                     );
                     journalContent += sectionContent;
                     
-                    // Log final content that was added from this context-only section
-                    console.log(`[DEBUG TEMPLATE] Added content from context-only section "${section.title}", length: ${sectionContent.length} chars`);
+                    // Log timing information for this context-only section
+                    contextSectionTimer.stop();
+                    console.log(`[TIMING] Context-only section "${section.title}" processed in ${contextSectionTimer.getFormattedTime()}, length: ${sectionContent.length} chars`);
                     console.log(`[DEBUG TEMPLATE] First 100 chars of context-only section: ${sectionContent.substring(0, 100)}...`);
                 }
             }
@@ -228,9 +246,14 @@ export async function processTranscriptionWithTemplate(
             journalContent += `\n[Original Audio](${audioFilePath})\n`;
         }
         
-        // Log full journal content at the end
+        // Stop the overall timer and log the total processing time
+        overallTimer.stop();
+        console.log(`[TIMING] Total template processing time: ${overallTimer.getFormattedTime()}`);
         console.log(`[DEBUG TEMPLATE] Final journal content length: ${journalContent.length} chars`);
         console.log(`[DEBUG TEMPLATE] Last 200 chars of journal content: ${journalContent.substring(Math.max(0, journalContent.length - 200))}`);
+        
+        // Show a final notice with the total processing time
+        new Notice(`Journal entry processed in ${overallTimer.getFormattedTime()}`);
         
         return journalContent;
     } catch (error) {
@@ -251,6 +274,8 @@ export async function createJournalEntry(
     content: string,
     noteFilename: string
 ): Promise<void> {
+    // Start timer for journal entry creation
+    const journalCreationTimer = startTimer('Journal Entry Creation');
     try {
         // Full path for the note
         const notePath = `${plugin.settings.noteLocation}/${noteFilename}.md`.replace(/\/+/g, '/');
@@ -283,8 +308,13 @@ export async function createJournalEntry(
             await plugin.app.workspace.getLeaf().openFile(file);
         }
         
-        new Notice(`Journal entry created: ${noteFilename}`);
+        // Log timing information for journal creation
+        journalCreationTimer.stop();
+        console.log(`[TIMING] Journal entry created in ${journalCreationTimer.getFormattedTime()}`);
+        new Notice(`Journal entry created: ${noteFilename} (in ${journalCreationTimer.getFormattedTime()})`);
     } catch (error) {
+        journalCreationTimer.stop();
+        console.error(`Error creating journal entry after ${journalCreationTimer.getFormattedTime()}:`, error);
         console.error('Error creating journal entry:', error);
         throw new Error(`Failed to create journal entry: ${error instanceof Error ? error.message : String(error)}`);
     }

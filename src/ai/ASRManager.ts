@@ -1,5 +1,6 @@
 import { TFile, Notice, requestUrl } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
+import { startTimer } from '../utils/timerUtils';
 
 /**
  * Result of a transcription operation
@@ -8,6 +9,7 @@ export interface TranscriptionResult {
     text: string;
     detectedLanguage?: string; // Full language name (e.g., 'English', 'German')
     languageCode?: string; // ISO language code (e.g., 'en', 'de')
+    processingTimeMs?: number; // Processing time in milliseconds
 }
 
 /**
@@ -27,11 +29,31 @@ export class ASRManager {
      * @returns Promise that resolves to transcription text
      */
     async transcribeAudio(audioBlob: Blob, language = 'auto', fileExtension = 'wav'): Promise<TranscriptionResult> {
-        // Select the transcription method based on the settings
-        if (this.plugin.settings.transcriptionProvider === 'localWhisper') {
-            return this.transcribeWithLocalWhisper(audioBlob, language, fileExtension);
-        } else {
-            return this.transcribeWithAIProviders(audioBlob, language);
+        // Start the ASR timer
+        const asrTimer = startTimer('ASR Transcription');
+        
+        try {
+            // Select the transcription method based on the settings
+            let result: TranscriptionResult;
+            if (this.plugin.settings.transcriptionProvider === 'localWhisper') {
+                result = await this.transcribeWithLocalWhisper(audioBlob, language, fileExtension);
+            } else {
+                result = await this.transcribeWithAIProviders(audioBlob, language);
+            }
+            
+            // Log and notify about the ASR processing time
+            const elapsedTime = asrTimer.stop();
+            console.log(`ASR processing completed in ${asrTimer.getFormattedTime()}`);
+            new Notice(`Audio transcribed in ${asrTimer.getFormattedTime()}`);
+            
+            // Add processing time to the result
+            return {
+                ...result,
+                processingTimeMs: elapsedTime
+            };
+        } catch (error) {
+            console.error(`ASR processing failed after ${asrTimer.getFormattedTime()}:`, error);
+            throw error;
         }
     }
 
@@ -82,6 +104,9 @@ export class ASRManager {
      * @returns Promise that resolves to a TranscriptionResult
      */
     private async transcribeWithAIProviders(audioBlob: Blob, language: string): Promise<TranscriptionResult> {
+        // Start a timer for AI Provider transcription
+        const aiProviderTimer = startTimer('AI Provider Transcription');
+        
         const aiProviders = this.plugin.aiProviders;
         if (!aiProviders) {
             throw new Error('AI Providers not initialized');
@@ -94,89 +119,56 @@ export class ASRManager {
             // Get provider ID from settings or use default
             const providerId = this.plugin.settings.aiProviders?.transcription;
             
+            // Find the provider object by ID
+            const provider = aiProviders.providers.find(p => p.id === providerId);
+            if (!provider) {
+                throw new Error(`AI Provider with ID ${providerId} not found`);
+            }
+            
             // Build prompt with language instructions if needed
             let systemPrompt = 'Transcribe the following audio. Just output the transcription as raw text.';
             if (language && language !== 'auto') {
-                systemPrompt = `Transcribe the following audio in ${language} language. Just output the transcription as raw text.`;
+                systemPrompt += ` The audio is in ${language} language.`;
             }
+            
+            // Create options for the AI provider
+            const options = {
+                provider: provider,
+                prompt: 'Transcribe this audio file.',
+                systemPrompt: systemPrompt,
+                files: [{
+                    data: base64Audio,
+                    type: 'audio',
+                    format: 'base64'
+                }]
+            };
             
             // Execute the transcription request
-            // Create options for the AI provider
-            interface AIProviderOptions {
-                provider?: string | null;
-                prompt: string;
-                systemPrompt: string;
-                files: Array<{
-                    data: string;
-                    type: string;
-                    format: string;
-                }>;
-            }
+            const streamHandler = await aiProviders.execute(options);
             
-            const executeOptions: AIProviderOptions = {
-                provider: providerId || undefined, // Convert null to undefined if needed
-                prompt: '',
-                systemPrompt: systemPrompt,
-                files: [
-                    {
-                        data: base64Audio,
-                        type: 'audio/wav',
-                        format: 'base64',
-                    },
-                ],
-            };
-            
-            // Type assertion needed due to API compatibility issues
-            // Need to use 'as any' here due to potential compatibility issues with AIExecuteOptions
-            // This is a safer approach than creating an incomplete type implementation
-            const response = await aiProviders.execute(executeOptions as any);
-            
-            // Handle the response from AI provider
-            // The response is usually a AIStreamHandler which requires processing
-            let transcriptionText = '';
-            
-            // Wait for the complete text via the stream handler
-            if (typeof response === 'string') {
-                // Direct string response
-                transcriptionText = response;
-            } else if (response) {
-                // Stream handler response
-                await new Promise<void>((resolve) => {
-                    let fullText = '';
-                    
-                    // Set up stream handlers
-                    if ('onData' in response && typeof response.onData === 'function') {
-                        response.onData((text: string) => {
-                            fullText += text;
-                        });
-                    }
-                    
-                    if ('onEnd' in response && typeof response.onEnd === 'function') {
-                        response.onEnd((text: string) => {
-                            fullText += text;
-                            transcriptionText = fullText;
-                            resolve();
-                        });
-                    } else {
-                        // If no onEnd handler, resolve immediately
-                        resolve();
-                    }
-                    
-                    if ('onError' in response && typeof response.onError === 'function') {
-                        response.onError((error: Error) => {
-                            console.error('AI Provider transcription stream error:', error);
-                            resolve(); // Resolve anyway to prevent hanging
-                        });
-                    }
+            // Get the full response text
+            let response = '';
+            await new Promise<string>((resolve, reject) => {
+                streamHandler.onEnd((fullText) => {
+                    response = fullText;
+                    resolve(fullText);
                 });
-            }
+                streamHandler.onError((error) => {
+                    reject(error);
+                });
+            });
+            
+            // Log the time taken for AI Provider transcription
+            console.log(`AI Provider transcription completed in ${aiProviderTimer.getFormattedTime()}`);
             
             return {
-                text: transcriptionText
+                text: response,
+                detectedLanguage: undefined,
+                languageCode: language !== 'auto' ? language : undefined,
+                processingTimeMs: aiProviderTimer.getElapsedTime()
             };
-            
         } catch (error) {
-            console.error('AI Provider transcription error:', error);
+            console.error(`AI Provider transcription failed after ${aiProviderTimer.getFormattedTime()}:`, error);
             throw new Error(`Failed to transcribe with AI Provider: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -195,10 +187,10 @@ export class ASRManager {
             throw new Error('Local Whisper endpoint not configured');
         }
         
+        // Normalize the endpoint URL
+        const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+        
         try {
-            // Ensure the server URL doesn't end with a slash
-            const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
-            
             // Convert the audio blob to ArrayBuffer for the request
             const audioBuffer = await audioBlob.arrayBuffer();
             
@@ -235,9 +227,13 @@ export class ASRManager {
             combinedArray.set(new Uint8Array(audioBuffer), headerArray.length);
             combinedArray.set(footerArray, headerArray.length + audioBuffer.byteLength);
             
+            // Prepare URL with parameters for language detection
+            const url = `${baseUrl}/detect-language?output=json`;
+            
             // Send the request with the proper Content-Type header
+            new Notice('Voice AI Journal: Detecting language...');
             const response = await requestUrl({
-                url: `${baseUrl}/detect-language`,
+                url: url,
                 method: 'POST',
                 body: combinedArray.buffer,
                 headers: {
@@ -252,28 +248,39 @@ export class ASRManager {
                 throw new Error(`Language detection request failed, status ${response.status}`);
             }
             
-            // Parse the JSON response
-            const result = response.json;
-            console.log('Language detection result:', result);
+            // Enhanced logging for debugging
+            console.log('[VoiceAIJournal] Language detection response status:', response.status);
+            console.log('[VoiceAIJournal] Language detection raw response:', response.text);
+            console.log('[VoiceAIJournal] Language detection response type:', typeof response.text);
             
-            // Return both detected_language and language_code directly from the API
-            // This avoids any need for mapping arrays
-            if (result && typeof result === 'object') {
-                const name = ('detected_language' in result && typeof result.detected_language === 'string') 
-                    ? result.detected_language 
-                    : 'English';
-                const code = ('language_code' in result && typeof result.language_code === 'string') 
-                    ? result.language_code 
-                    : 'en';
-                    
-                return { code, name };
+            // Parse the JSON response
+            let parsed;
+            try {
+                parsed = response.json ?? JSON.parse(response.text);
+                console.log('[VoiceAIJournal] Parsed language detection response:', parsed);
+            } catch (parseError) {
+                console.error('[VoiceAIJournal] Failed to parse language detection response:', parseError);
+                console.log('[VoiceAIJournal] Raw response that failed to parse:', response.text);
+                // Default to English if parsing fails
+                parsed = { language_code: 'en', language_name: 'english' };
             }
             
-            return { code: 'en', name: 'English' }; // Default if detection fails
+            // Get the language code and name
+            // Check for both new API format (language_code) and old API format (detected_language)
+            const languageCode = parsed.language_code || 
+                                (parsed.detected_language_code || 'en');
+            const languageName = parsed.language_name || 
+                                (parsed.detected_language || 'english');
+            
+            console.log(`[VoiceAIJournal] Detected language: ${languageName} (${languageCode})`);
+            
+            return {
+                code: languageCode,
+                name: languageName
+            };
         } catch (error) {
-            console.error('Local Whisper language detection error:', error);
-            // Return English as fallback if there's an error
-            return { code: 'en', name: 'English' };
+            console.error('Language detection error:', error);
+            throw new Error(`Failed to detect language: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
     
@@ -286,32 +293,39 @@ export class ASRManager {
      * @returns Transcription result
      */
     private async transcribeWithLocalWhisper(audioBlob: Blob, language: string, fileExtension = 'wav'): Promise<TranscriptionResult> {
+        // Start a timer for the Whisper transcription
+        const whisperTimer = startTimer('Whisper Transcription');
+        
         // Get the endpoint from settings
         const endpoint = this.plugin.settings.localWhisperEndpoint;
         if (!endpoint) {
             throw new Error('Local Whisper endpoint not configured');
         }
         
-        // Ensure the server URL doesn't end with a slash
+        // Normalize the endpoint URL
         const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
         
-        // First, detect language if set to auto
+        // Variables for language detection
         let detectedLanguage: string | undefined;
         let languageCode: string | undefined;
-        if (language === 'auto' && this.plugin.settings.transcriptionLanguage === 'auto') {
-            new Notice('Voice AI Journal: Detecting audio language...');
-            console.log('Language set to auto, performing language detection...');
+        
+        // If language is set to 'auto', try to detect the language first
+        if (language === 'auto') {
             try {
-                const languageInfo = await this.detectLanguageWithLocalWhisper(audioBlob, fileExtension);
-                detectedLanguage = languageInfo.name;
-                languageCode = languageInfo.code;
-                console.log(`Detected language: ${detectedLanguage} (code: ${languageCode})`);
+                console.log('[VoiceAIJournal] Starting language detection...');
+                const langDetection = await this.detectLanguageWithLocalWhisper(audioBlob, fileExtension);
+                detectedLanguage = langDetection.name;
+                languageCode = langDetection.code;
+                console.log(`[VoiceAIJournal] Using detected language: ${detectedLanguage} (${languageCode})`);
                 
-                // Log additional debug information
-                console.log(`Using language code '${languageCode}' for transcription`);
+                // Add a notification for the user about the detected language
+                new Notice(`Detected language: ${detectedLanguage}`);
             } catch (error) {
-                console.warn('Language detection failed, proceeding without language specification:', error);
+                console.warn('[VoiceAIJournal] Language detection failed, proceeding without language specification:', error);
+                new Notice('Language detection failed, using default language');
             }
+        } else {
+            console.log(`[VoiceAIJournal] Using specified language: ${language}`);
         }
         
         try {
@@ -359,12 +373,14 @@ export class ASRManager {
             // Add language parameter if we have a language code
             if (languageToUse) {
                 // Log the URL we're constructing for debugging
-                console.debug(`Adding language parameter: ${languageToUse}`);
+                console.log(`[VoiceAIJournal] Adding language parameter: ${languageToUse}`);
                 url += `&language=${encodeURIComponent(languageToUse)}`;
+            } else {
+                console.log('[VoiceAIJournal] No language parameter added, using server default');
             }
             
             // Log the final URL for debugging
-            console.debug(`Sending request to: ${url}`);
+            console.log(`[VoiceAIJournal] Sending transcription request to: ${url}`);
             
             // Add diarization parameter if enabled
             if (this.plugin.settings.automaticSpeechDetection) {
@@ -414,12 +430,22 @@ export class ASRManager {
                 text = parsed.segments.map(seg => seg.text).join(' ');
             }
             
+            // Log the transcript and language information
             console.log('[VoiceAIJournal] ASR transcript:', text);
+            console.log(`[VoiceAIJournal] Detected language: ${detectedLanguage || 'not detected'} (${languageCode || 'unknown code'})`);
+            
+            // Log the time taken for Whisper transcription
+            const transcriptionTime = whisperTimer.getFormattedTime();
+            console.log(`[VoiceAIJournal] Whisper transcription completed in ${transcriptionTime}`);
+            
+            // Show a notification with the transcription time and language
+            new Notice(`Transcription completed in ${transcriptionTime}${detectedLanguage ? ` (${detectedLanguage})` : ''}`);
             
             return { 
                 text: text,
                 detectedLanguage: detectedLanguage,
-                languageCode: languageCode
+                languageCode: languageCode,
+                processingTimeMs: whisperTimer.getElapsedTime()
             };
         } catch (error) {
             console.error('Local Whisper transcription error:', error);
