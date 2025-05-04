@@ -1,94 +1,137 @@
-# Obsidian Sample Plugin
+# Voice AI Journal for Obsidian
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+![Voice AI Journal Banner](https://raw.githubusercontent.com/tomorrowflow/obsidian-voice-ai-journal/main/assets/banner.png)
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Voice AI Journal is a powerful Obsidian plugin that transforms your spoken words into structured journal entries using AI transcription and analysis. Record your thoughts, reflections, or ideas, and let the plugin convert them into beautifully formatted Markdown notes with intelligent summaries, insights, and visualizations.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Features
 
-## First time developing plugins?
+### Voice Recording
+- **Easy Recording Interface**: Start, pause, resume, and stop recordings with a simple interface
+- **Recording Timer**: Keep track of your recording duration
+- **Microphone Selection**: Choose from available microphones on your device
+- **Mobile Support**: Full functionality on mobile devices
 
-Quick starting guide for new plugin devs:
+### AI-Powered Transcription
+- **Multiple Transcription Options**: Use Obsidian's built-in AI providers or a local Whisper instance
+- **Language Detection**: Automatic detection of the spoken language
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### Intelligent Analysis
+- **Smart Summaries**: AI-generated summaries of your recordings
+- **Insightful Analysis**: Extract key insights and patterns from your spoken content
+- **Automatic Titling**: Generate relevant titles for your journal entries
+- **Mermaid Diagrams**: Create visual representations of your thoughts
+- **Question Answering**: Identify and answer questions you ask during recordings
 
-## Releasing new releases
+### Flexible Templates
+- **Customizable Templates**: Create and edit templates for different types of journal entries
+- **Template Editor**: Visual editor for managing your templates
+- **Section Control**: Enable or disable specific sections based on your needs
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+### File Management
+- **Organized Storage**: Automatically organize your recordings, transcripts, and journal entries
+- **File Uploading**: Upload existing audio files for processing (desktop only)
+- **Append to Notes**: Option to append new recordings to existing notes
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+## Getting Started
 
-## Adding your plugin to the community plugin list
+### Installation
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+1. Open Obsidian and go to Settings
+2. Navigate to Community Plugins and disable Safe Mode
+3. Click Browse and search for "Voice AI Journal"
+4. Install the plugin and enable it
 
-## How to use
+### Quick Start
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+1. Configure AI providers in Obsidian settings to do transcription and analysis
+2. Click the microphone icon in the ribbon or use the command palette to start a recording
+3. Speak clearly into your microphone
+4. Click the stop button when finished
+5. Configure processing options (template, save audio, etc.)
+6. Wait for the plugin to process your recording
+7. Review your new journal entry
 
-## Manually installing the plugin
+## Configuration
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+### General Settings
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+- **Transcription Provider**: Choose between Obsidian AI Providers or Local Whisper
+- **Audio Quality**: Select the quality level for recordings
+- **Transcription Language**: Set a specific language or use auto-detection
+- **Output Language**: Choose the language for AI-generated content
+- **Note Location**: Set where journal entries are saved
+- **Transcripts Location**: Set where raw transcripts are saved
+- **Recordings Location**: Set where audio recordings are saved
 
-## Funding URL
+### Templates
 
-You can include funding URLs where people who use your plugin can financially support it.
+The plugin comes with a default template that includes:
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+1. **Summary**: A concise summary of your recording
+2. **Insights**: Key insights extracted from your content
+3. **Mermaid Chart**: A visual representation of concepts and relationships
+4. **Answered Questions**: Responses to questions you asked during recording
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
+You can customize these sections or create entirely new templates through the Template Editor.
 
-If you have multiple URLs, you can also do:
+## Using File Upload
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
+On desktop devices, you can upload existing audio files for processing:
 
-## API Documentation
+1. Open the recording modal by clicking the microphone icon
+2. Click the "Upload Audio File" button at the bottom of the modal
+3. Select an audio file from your computer
+4. The plugin will process the file just like a recording
 
-See https://github.com/obsidianmd/obsidian-api
+## Advanced Usage
+
+### Local Whisper Setup
+
+If you prefer to use a local Whisper instance for transcription:
+
+1. Set up a Whisper API server on your local machine
+2. In plugin settings, select "Local Whisper" as your transcription provider
+3. Enter the endpoint URL (default: http://localhost:9000)
+
+### Custom Templates
+
+Create specialized templates for different types of journal entries:
+
+1. Go to the Template Editor
+2. Click "Add New Template"
+3. Configure sections with custom prompts
+4. Save and select your template when processing recordings
+
+## Troubleshooting
+
+- **Microphone Access**: Ensure your browser/Obsidian has permission to access your microphone
+- **Processing Errors**: Check console logs for detailed error messages
+- **AI Provider Issues**: Verify your AI provider configuration in Obsidian settings
+
+## Development
+
+### Building from Source
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Build the plugin: `npm run build`
+4. Copy the built files to your Obsidian plugins folder
+
+### Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- Built with [Obsidian API](https://github.com/obsidianmd/obsidian-api)
+- Uses [Obsidian AI Providers SDK](https://docs.obsidian.md/Plugins/AI/AI+providers)
+
+---
+
+Created by [Tomorrowflow](https://github.com/tomorrowflow)
+
