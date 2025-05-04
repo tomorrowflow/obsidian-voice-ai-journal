@@ -1,4 +1,4 @@
-import { Modal, setIcon, Setting, Notice } from 'obsidian';
+import { Modal, setIcon, Setting, Notice, Platform } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../../main';
 import { formatRecordingTime } from '../utils/timeUtils';
 
@@ -25,14 +25,15 @@ export class RecordingModal extends Modal {
     private options: RecordingModalOptions;
     private isMobile: boolean;
     private scribingMsg: HTMLElement;
-    private isScribing: boolean = false;
+    private isScribing = false;
+    private uploadButton: HTMLElement;
 
     constructor(plugin: VoiceAIJournalPlugin) {
         super(plugin.app);
         this.plugin = plugin;
         
         // Detect if running on mobile
-        this.isMobile = ('isMobile' in this.app) ? Boolean((this.app as unknown as {isMobile: boolean}).isMobile) : false;
+        this.isMobile = Platform.isMobile;
         
         // Initialize default options
         this.options = {
@@ -274,6 +275,66 @@ export class RecordingModal extends Modal {
             });
         
         // Language and model options removed as requested
+        
+        // Add file upload button (desktop only)
+        if (!Platform.isMobile) {
+            const uploadContainer = container.createDiv({ cls: 'vaj-upload-container' });
+            uploadContainer.setAttr('style', [
+                'width: 100%;',
+                'display: flex;',
+                'justify-content: center;',
+                'margin: 12px 0;'
+            ].join(' '));
+            
+            this.uploadButton = uploadContainer.createEl('button', { 
+                cls: 'vaj-btn vaj-btn-upload',
+                text: 'Upload Audio File'
+            });
+            
+            this.uploadButton.setAttr('style', [
+                'width: 100%;',
+                'margin-top: 12px;',
+                'padding: 8px;',
+                'display: flex;',
+                'align-items: center;',
+                'justify-content: center;',
+                'gap: 6px;'
+            ].join(' '));
+            
+            this.buildButton(this.uploadButton, 'upload', 'Upload Audio File');
+            
+            this.uploadButton.addEventListener('click', this.handleFileUpload.bind(this));
+        }
+    }
+    
+    /**
+     * Handle file upload button click
+     */
+    private handleFileUpload() {
+        if (this.plugin.aiProviders || this.plugin.settings.transcriptionProvider === 'localWhisper') {
+            // Create a file input element
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'audio/*';
+            fileInput.style.display = 'none';
+            document.body.appendChild(fileInput);
+            
+            // Handle file selection
+            fileInput.addEventListener('change', async () => {
+                if (fileInput.files && fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    this.close(); // Close the modal
+                    await this.plugin.processAudioFile(file);
+                }
+                // Remove the input element
+                document.body.removeChild(fileInput);
+            });
+            
+            // Trigger file selection dialog
+            fileInput.click();
+        } else {
+            new Notice('AI providers are not initialized. Please try again in a moment.');
+        }
     }
 
     private startTimerUpdates() {

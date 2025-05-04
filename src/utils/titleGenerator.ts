@@ -25,7 +25,7 @@ export async function generateNoteTitle(
         }
         
         // Create a prompt for generating a concise title
-        const titlePrompt = 'Generate a concise, descriptive title (maximum 4 words) that captures the essence of this note. The title should be specific and meaningful. ONLY return the title text itself, with no quotes, prefixes, or additional commentary.';
+        const titlePrompt = 'Generate a concise, descriptive title (maximum 4 words) that captures the essence of this note. The title should be specific and meaningful. ONLY return the title text itself, with no quotes, prefixes, or additional commentary. Avoid special characters like \\, / and :';
         
         // Get the LLM response for title generation
         const response = await plugin.aiManager.analyzeText(

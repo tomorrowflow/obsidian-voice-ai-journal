@@ -373,8 +373,7 @@ export class ASRManager {
             // Add language parameter if we have a language code
             if (languageToUse) {
                 // Log the URL we're constructing for debugging
-                console.log(`[VoiceAIJournal] Adding language parameter: ${languageToUse}`);
-                url += `&language=${encodeURIComponent(languageToUse)}`;
+                console.log(`[VoiceAIJournal] Adding language parameter to the ASR request: ${languageToUse}`);
             } else {
                 console.log('[VoiceAIJournal] No language parameter added, using server default');
             }

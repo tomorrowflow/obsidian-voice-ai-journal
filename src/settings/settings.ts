@@ -55,19 +55,19 @@ export const DEFAULT_JOURNAL_TEMPLATE: JournalTemplate = {
 			title: "Summary",
 			context: '# Zusammenfassung\n\n{{response}}\n',
 			optional: false,
-			prompt: "Think step-by-step: First, analyze the transcript to identify core themes, key points, and actionable takeaways. Second, organize these into a concise, structured summary. Use h3 headers for sub-sections if needed. Format as bullet points with clear, actionable language. Avoid markdown beyond basic lists and headers. Example: '## Summary' followed by '- Key point 1', '- Key point 2'."
+			prompt: "Think step-by-step: First, analyze the transcript to identify core themes, key points, and actionable takeaways. Second, organize these into a concise, structured summary. Use h2 headers for sub-sections. Format as bullet points with clear, actionable language. Avoid markdown beyond basic lists and headers. Do not add a general headline. Example (to be translated into target language): '## Digest' followed by '- Key point 1', '- Key point 2'. "
 		},
 		{
 			title: "Insights",
 			context: '# Erkenntnisse\n\n{{response}}\n',
 			optional: false,
-			prompt: "Think deeply: First, reflect on the transcript to identify patterns, contradictions, or opportunities. Second, evaluate how these insights align with your goals. Third, structure your thoughts into a 1-2 paragraph analysis. Finally, add bullet points for actionable improvements. Use h3 headers for sub-sections if needed. Example: '## Key Insight: [Topic]' followed by '### Actionable Improvement: [Detail]'."
+			prompt: "Think deeply: First, reflect on the transcript to identify patterns, contradictions, or opportunities. Second, evaluate how these insights align with your goals. Third, structure your thoughts into a 1-2 paragraph analysis. Finally, add bullet points for actionable improvements. Use h3 headers for sub-sections if needed. Example (to be translated into target language): '## Key Insight: [Topic]' followed by '### Actionable Improvement: [Detail]'."
 		},
 		{
 			title: "Mermaid Chart",
 			context: '# Mermaid Diagramm\n\n```mermaid\n{{response}}\n```\n',
 			optional: false,
-			prompt: "Think critically: First, map relationships between key concepts in the transcript and your insights. Second, decide on a top-down structure with nodes. The chart should visually connect key concepts, insights, and statements from the speaker. Third, write the Mermaid code using the 'graph TD' syntax. Employ a colorful style for better readability. **Crucially, ONLY output the Mermaid chart code itself. Do not include any surrounding text or markdown formatting.**  **Strictly avoid the following characters within node labels:** newlines, tabs, commas, apostrophes, quotes, and any special characters that could break the Mermaid syntax. If a quote is necessary, represent it as `#quot;`.  The chart should be concise and easy to understand."
+			prompt: "Think critically: First, map relationships between key concepts in the transcript and your insights. Second, decide on a top-down structure with nodes. The chart should visually connect key concepts, insights, and statements from the speaker. Third, write the Mermaid code using the 'graph TD' syntax. Employ a colorful style for better readability. Stay within the Obsidian color pallette: #71627a, #5b4965, #3d354b, #2e293a, #2e293a, #064273, #76b6c4, #7fcdff, #1da2d8, #def3f6. **Crucially, ONLY output the Mermaid chart code itself. Do not include any surrounding text or markdown formatting.**  **Strictly avoid the following characters within node labels:** newlines, tabs, commas, apostrophes, quotes, and any special characters that could break the Mermaid syntax. If a quote is necessary, represent it as `#quot;`.  The chart should be concise and easy to understand."
 		},
 		{
 			title: "Answered Questions",
@@ -84,9 +84,9 @@ export const DEFAULT_JOURNAL_TEMPLATE: JournalTemplate = {
 		/*,
 		{
 			title: "Reflection",
-			context: '# Reflektion\n\n{{response}}',
+			context: '# Reflektion\n\n{{response}}\n',
 			optional: true,
-			prompt: "Think critically: First, evaluate how the transcript aligns with your goals, challenges, or gaps. Second, reflect on key takeaways. Third, summarize your personal insights. Use h3 headers for sub-sections if needed. Example: '## Key Takeaway: [Summary]' followed by '### Personal Reflection: [Details]'."		
+			prompt: "Think critically: First, evaluate how the transcript aligns with your goals, challenges, or gaps. Second, reflect on key takeaways. Third, summarize your personal insights. Use h3 headers for sub-sections if needed. Do not add a general headline. Example (to be translated into target language): '## Key Takeaway: [Summary]' followed by '### Personal Reflection: [Details]'."		
 		}*/
 	],
 };

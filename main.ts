@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, Platform } from 'obsidian';
+import { Notice, Plugin, TFile } from 'obsidian';
 import { initAI, waitForAI } from '@obsidian-ai-providers/sdk';
 
 // Import settings and types
@@ -358,35 +358,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			new RecordingModal(this).open();
 		});
 		
-		// 2. Upload audio file icon (desktop only)
-		if (!Platform.isMobile) {
-			this.addRibbonIcon('upload', 'Upload audio file', async (evt: MouseEvent) => {
-				if (!this.aiProviders && this.settings.transcriptionProvider !== 'localWhisper') {
-					new Notice('AI providers are not initialized. Please try again in a moment.');
-					return;
-				}
-				
-				// Create a file input element
-				const fileInput = document.createElement('input');
-				fileInput.type = 'file';
-				fileInput.accept = 'audio/*';
-				fileInput.style.display = 'none';
-				document.body.appendChild(fileInput);
-				
-				// Handle file selection
-				fileInput.addEventListener('change', async () => {
-					if (fileInput.files && fileInput.files.length > 0) {
-						const file = fileInput.files[0];
-						await this.processAudioFile(file);
-					}
-					// Remove the input element
-					document.body.removeChild(fileInput);
-				});
-				
-				// Trigger file selection dialog
-				fileInput.click();
-			});
-		} // End of desktop-only condition
+		// Upload audio file functionality moved to recording modal
 
 		// Register commands
 		this.addCommand({
@@ -418,7 +390,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	 * Process an uploaded audio file
 	 * @param file The audio file from the file upload dialog
 	 */
-	private async processAudioFile(file: File): Promise<void> {
+	async processAudioFile(file: File): Promise<void> {
 		try {
 			new Notice(`Processing audio file: ${file.name}`);
 			
