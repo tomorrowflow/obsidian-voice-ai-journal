@@ -34,6 +34,26 @@ export class TemplateSettingsTab {
     private render(): void {
         const containerEl = this.container;
         containerEl.empty();
+        containerEl.createEl('h3', { text: 'Tag Extraction' });
+        
+        // Create a container for the tag extraction section with the same styling as template sections
+        const tagExtractionContainer = containerEl.createEl('div', { cls: 'voice-journal-template-section' });
+        
+        // Tag extraction prompt setting
+        new Setting(tagExtractionContainer)
+            .setName('Tag Extraction Prompt')
+            .setDesc('Prompt used by the LLM to extract tags from the transcription')
+            .addTextArea(text => {
+                text.setValue(this.plugin.settings.tagExtractionPrompt);
+				text.inputEl.rows=4;
+				text.inputEl.style.resize='none';
+				text.inputEl.style.width='100%';
+				text.onChange(async (value) => {
+                    this.plugin.settings.tagExtractionPrompt = value;
+                    await this.plugin.saveSettings();
+                });
+            });
+            
         containerEl.createEl('h3', { text: 'Journal Templates' });
 
         // Ensure templates array exists and include default

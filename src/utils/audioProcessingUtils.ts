@@ -2,6 +2,74 @@ import { Notice, TFile } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../main';
 
 /**
+ * Extract tags from transcription text using LLM
+ * 
+ * @param plugin The VoiceAIJournalPlugin instance
+ * @param transcription The transcription text
+ * @returns Array of extracted tags
+ */
+export async function extractTags(
+    plugin: VoiceAIJournalPlugin,
+    transcription: string
+): Promise<string[]> {
+    try {
+        // Get the AI provider for analysis
+        const analysisProviderId = plugin.settings.aiProviders.analysis;
+        
+        if (!analysisProviderId) {
+            console.warn('No analysis provider configured for tag extraction');
+            return ['vaj']; // Return only the default tag
+        }
+        
+        // Use the tag extraction prompt from settings
+        const tagPrompt = plugin.settings.tagExtractionPrompt;
+        
+        // Get the LLM response for tag extraction
+        const response = await plugin.aiManager.analyzeText(
+            transcription,
+            tagPrompt,
+            analysisProviderId
+        );
+        
+        if (!response) {
+            console.warn('Tag extraction returned empty response');
+            return ['vaj'];
+        }
+        
+        try {
+            // Parse the JSON response
+            const parsedResponse = JSON.parse(response) as string[];
+            
+            // Ensure the result is an array of strings
+            if (Array.isArray(parsedResponse)) {
+                // Add the default 'vaj' tag
+                if (!parsedResponse.includes('vaj')) {
+                    parsedResponse.unshift('vaj');
+                }
+                
+                // Add current date in YYYY-MM-DD format
+                const today = new Date();
+                const dateStr = today.toISOString().split('T')[0];
+                if (!parsedResponse.includes(dateStr)) {
+                    parsedResponse.push(dateStr);
+                }
+                
+                return parsedResponse;
+            }
+        } catch (parseError) {
+            console.error('Failed to parse tag extraction response:', parseError);
+            console.log('Raw response:', response);
+        }
+        
+        // Fallback if parsing fails
+        return ['vaj'];
+    } catch (error) {
+        console.error('Error extracting tags:', error);
+        return ['vaj']; // Return only the default tag on error
+    }
+}
+
+/**
  * Process audio transcription using template sections
  * This is a shared utility used for both recorded and uploaded audio
  * 
@@ -34,8 +102,16 @@ export async function processTranscriptionWithTemplate(
         // Get the AI provider for analysis
         const analysisProviderId = plugin.settings.aiProviders.analysis;
         
+        // Extract tags from the transcription
+        new Notice('Extracting tags from transcription...');
+        const tags = await extractTags(plugin, transcription);
+        console.log('Extracted tags:', tags);
+        
+        // Build frontmatter with tags
+        const frontmatter = '---\ntags:\n' + tags.map(tag => `  - ${tag}`).join('\n') + '\n---\n\n';
+        
         // Final journal content to be built section by section
-        let journalContent = '';
+        let journalContent = frontmatter;
         
         // Special token to indicate no results for optional sections
         const NO_RESULTS_TOKEN = "[[NO_RESULTS_FOR_OPTIONAL_SECTION]]";

@@ -32,6 +32,13 @@ export interface AIProviders {
 }
 
 /**
+ * Interface for tag extraction result
+ */
+export interface TagExtractionResult {
+    tags: string[];
+}
+
+/**
  * Interface for a provider from the AI Providers plugin
  */
 export interface AIProvider {
