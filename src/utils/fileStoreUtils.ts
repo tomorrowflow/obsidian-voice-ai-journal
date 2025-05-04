@@ -44,6 +44,14 @@ export function buildStructuredPath(plugin: VoiceAIJournalPlugin, type: StoreFil
 }
 
 /**
+ * Result of storing a file with structure
+ */
+export interface FileStoreResult {
+  file: TFile | null;
+  path: string;
+}
+
+/**
  * Stores a file (note, transcript, or audio) in a structured folder, creating folders as needed.
  */
 export async function storeFileWithStructure(options: StoreFileOptions): Promise<TFile | null> {
@@ -73,5 +81,44 @@ export async function storeFileWithStructure(options: StoreFileOptions): Promise
     new Notice(`Failed to save ${type}: ${baseFileName}`);
     console.error(`Failed to save ${type}`, err);
     return null;
+  }
+}
+
+/**
+ * Enhanced version of storeFileWithStructure that returns both the file and its path
+ */
+export async function storeFileWithStructureEnhanced(options: StoreFileOptions): Promise<FileStoreResult> {
+  const { plugin, type, baseFileName, content, date, extension } = options;
+  const targetDate = date || new Date();
+  const filePath = buildStructuredPath(plugin, type, targetDate, baseFileName, extension);
+  const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+  const fileService = new FileService(plugin.app);
+
+  try {
+    await fileService.ensureFolderExists(folderPath);
+    let file: TFile | null = null;
+    if (type === 'audio' && content instanceof ArrayBuffer) {
+      await plugin.app.vault.createBinary(filePath, content);
+      file = plugin.app.vault.getAbstractFileByPath(filePath) as TFile;
+    } else if (typeof content === 'string') {
+      const fileExists = await plugin.app.vault.adapter.exists(filePath);
+      if (fileExists) {
+        await plugin.app.vault.adapter.write(filePath, content);
+      } else {
+        await plugin.app.vault.create(filePath, content);
+      }
+      file = plugin.app.vault.getAbstractFileByPath(filePath) as TFile;
+    }
+    return {
+      file,
+      path: filePath
+    };
+  } catch (err) {
+    new Notice(`Failed to save ${type}: ${baseFileName}`);
+    console.error(`Failed to save ${type}`, err);
+    return {
+      file: null,
+      path: ''
+    };
   }
 }

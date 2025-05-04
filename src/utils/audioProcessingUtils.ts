@@ -76,14 +76,18 @@ export async function extractTags(
  * @param plugin The VoiceAIJournalPlugin instance
  * @param transcription The transcription text
  * @param templateId ID of the template to use
- * @param audioFileName Optional filename of the original audio file
+ * @param audioFilePath Optional path of the original audio file
+ * @param transcriptFilePath Optional path of the transcript file
+ * @param detectedLanguage Optional detected language name
+ * @param languageCode Optional detected language code
  * @returns Processed content for the journal entry
  */
 export async function processTranscriptionWithTemplate(
     plugin: VoiceAIJournalPlugin,
     transcription: string,
     templateId: string,
-    audioFileName?: string,
+    audioFilePath?: string,
+    transcriptFilePath?: string,
     detectedLanguage?: string,
     languageCode?: string
 ): Promise<string> {
@@ -107,8 +111,25 @@ export async function processTranscriptionWithTemplate(
         const tags = await extractTags(plugin, transcription);
         console.log('Extracted tags:', tags);
         
-        // Build frontmatter with tags
-        const frontmatter = '---\ntags:\n' + tags.map(tag => `  - ${tag}`).join('\n') + '\n---\n\n';
+        // Build frontmatter with tags and source files
+        let frontmatter = '---\ntags:\n' + tags.map(tag => `  - ${tag}`).join('\n');
+        
+        // Add source files if available
+        if (audioFilePath || transcriptFilePath) {
+            frontmatter += '\nsource:';
+            if (audioFilePath) {
+                // Ensure quotes are properly formatted for YAML
+                const cleanPath = audioFilePath.startsWith('/') ? audioFilePath.substring(1) : audioFilePath;
+                frontmatter += `\n  - "[[${cleanPath}]]"`;
+            }
+            if (transcriptFilePath) {
+                // Ensure quotes are properly formatted for YAML
+                const cleanPath = transcriptFilePath.startsWith('/') ? transcriptFilePath.substring(1) : transcriptFilePath;
+                frontmatter += `\n  - "[[${cleanPath}]]"`;
+            }
+        }
+        
+        frontmatter += '\n---\n\n';
         
         // Final journal content to be built section by section
         let journalContent = frontmatter;
@@ -201,9 +222,10 @@ export async function processTranscriptionWithTemplate(
             journalContent = `# Journal Entry\n\n## Transcription\n${transcription}\n\n`;
         }
         
-        // Add link to audio file if provided
-        if (audioFileName) {
-            journalContent += `\n[Original Audio](${audioFileName})\n`;
+        // We don't need to add the audio file link here anymore as it's in the frontmatter
+        // But we'll keep this for backward compatibility with older templates
+        if (audioFilePath && !journalContent.includes(audioFilePath)) {
+            journalContent += `\n[Original Audio](${audioFilePath})\n`;
         }
         
         // Log full journal content at the end

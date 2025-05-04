@@ -174,6 +174,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				try {
 					const transcriptBaseName = noteFile.basename || noteFile.name.replace(/\.md$/, '');
 					await storeTranscriptAsMarkdown(this, transcriptionResult.text, transcriptBaseName);
+					// We don't need to track the transcript path in this case
 				} catch (err) {
 					console.error('Failed to save transcript as markdown:', err);
 				}
@@ -185,24 +186,42 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				// TODO: Implement AI processing with template
 				// For now, just create a note with the transcription
 				const date = options.diaryEntryDate ? new Date(options.diaryEntryDate) : new Date();
-				const formattedDate = date.toISOString().split('T')[0];
-				const noteName = `${formattedDate} Journal Entry.md`;
-				const notePath = `${this.settings.noteLocation}/${noteName}`;
+				// We'll use the template manager to generate the filename instead
 				
-				// Create the content
-				let content = `# Journal Entry - ${formattedDate}\n\n`;
-				content += `## Transcription\n\n${transcriptionResult.text}\n\n`;
+				// Import the audio processing utilities
+				const { processTranscriptionWithTemplate, createJournalEntry } = await import('./src/utils/audioProcessingUtils');
 				
-				// Add link to the audio file if it was saved
-				if (audioFile) {
-					content += `[Original Audio](${filePath})\n`;
+				// Store the raw transcript as a markdown note
+				let transcriptPath = '';
+				try {
+					const transcriptResult = await storeTranscriptAsMarkdown(this, transcriptionResult.text, '', date);
+					transcriptPath = transcriptResult.path;
+					new Notice('Transcript saved successfully');
+				} catch (err) {
+					console.error('Failed to save transcript as markdown:', err);
 				}
 				
-				// Create the note
-				const noteFile = await this.app.vault.create(notePath, content);
+				// Get the selected template ID
+				const selectedTemplateId = options.selectedTemplate || this.settings.defaultTemplate;
 				
-				// Open the note
-				await this.app.workspace.getLeaf().openFile(noteFile);
+				// Process transcription with the selected template
+				const processedContent = await processTranscriptionWithTemplate(
+					this,
+					transcriptionResult.text,
+					selectedTemplateId,
+					audioFile ? audioFile.path : undefined,
+					transcriptPath,
+					transcriptionResult.detectedLanguage,
+					transcriptionResult.languageCode
+				);
+				
+				// Generate filename using the template manager with the specified date
+				const filename = this.templateManager.generateFilename(this.settings.noteNamingFormat, date);
+				
+				// Create the journal entry
+				await createJournalEntry(this, processedContent, filename);
+				
+				// Note will be opened by createJournalEntry
 			}
 			
 			new Notice('Voice AI Journal: Processing complete!');
@@ -429,8 +448,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			}
 			
 			// Store the raw transcript immediately after receiving it
+			let transcriptPath = '';
 			try {
-				await storeTranscriptAsMarkdown(this, transcriptionResult.text, '', audioDate);
+				const transcriptResult = await storeTranscriptAsMarkdown(this, transcriptionResult.text, '', audioDate);
+				transcriptPath = transcriptResult.path;
 				new Notice('Transcript saved successfully');
 			} catch (err) {
 				console.error('Failed to save transcript as markdown:', err);
@@ -454,6 +475,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				transcriptionResult.text,
 				selectedTemplateId,
 				audioFile ? audioFile.path : undefined,
+				transcriptPath, // Pass the transcript file path
 				transcriptionResult.detectedLanguage, // Pass the full detected language name
 				transcriptionResult.languageCode // Pass the language code
 			);

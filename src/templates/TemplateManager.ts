@@ -31,9 +31,10 @@ export class TemplateManager {
      * Uses moment.js for date formatting
      * 
      * @param templateText The template text to process
+     * @param date Optional custom date to use (defaults to current date)
      * @returns The template with date variables replaced
      */
-    private processDateVariables(templateText: string): string {
+    private processDateVariables(templateText: string, date?: Date): string {
         const dateRegex = /{{date:([^}]+)}}/g;
         let match;
         let result = templateText;
@@ -41,7 +42,9 @@ export class TemplateManager {
         while ((match = dateRegex.exec(templateText)) !== null) {
             const placeholder = match[0];
             const format = match[1];
-            const formattedDate = moment().format(format);
+            // Use the provided date or current date
+            const momentDate = date ? moment(date) : moment();
+            const formattedDate = momentDate.format(format);
             result = result.replace(placeholder, formattedDate);
         }
         
@@ -52,10 +55,11 @@ export class TemplateManager {
      * Generate a filename for the journal entry based on template
      * 
      * @param filenameTemplate Template string for filename (supports date variables)
+     * @param date Optional custom date to use (defaults to current date)
      * @returns Processed filename
      */
-    generateFilename(filenameTemplate: string): string {
-        return this.processDateVariables(filenameTemplate);
+    generateFilename(filenameTemplate: string, date?: Date): string {
+        return this.processDateVariables(filenameTemplate, date);
     }
 
     /**
