@@ -438,9 +438,6 @@ export class ASRManager {
             const transcriptionTime = whisperTimer.getFormattedTime();
             console.log(`[VoiceAIJournal] Whisper transcription completed in ${transcriptionTime}`);
             
-            // Show a notification with the transcription time and language
-            new Notice(`Transcription completed in ${transcriptionTime}${detectedLanguage ? ` (${detectedLanguage})` : ''}`);
-            
             return { 
                 text: text,
                 detectedLanguage: detectedLanguage,

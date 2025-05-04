@@ -13,6 +13,7 @@ import { RecordingModal } from './src/ui/modals/RecordingModal';
 import { TemplateManager } from './src/templates/TemplateManager';
 import { FileService } from './src/services/FileService';
 import { storeTranscriptAsMarkdown } from './src/utils/storeTranscriptAsMarkdown';
+import { generateNoteTitle } from './src/utils/titleGenerator';
 import './src/styles.css';
 import './src/ui/styles/recording-modal.css';
 
@@ -215,11 +216,19 @@ export default class VoiceAIJournalPlugin extends Plugin {
 					transcriptionResult.languageCode
 				);
 				
+				// Generate a title for the note in the detected language
+				const noteTitle = await generateNoteTitle(
+					this, 
+					transcriptionResult.text,
+					transcriptionResult.detectedLanguage, // Pass the detected language
+					transcriptionResult.languageCode // Pass the language code
+				);
+				
 				// Generate filename using the template manager with the specified date
 				const filename = this.templateManager.generateFilename(this.settings.noteNamingFormat, date);
 				
-				// Create the journal entry
-				await createJournalEntry(this, processedContent, filename);
+				// Create the journal entry with the title
+				await createJournalEntry(this, processedContent, filename, noteTitle);
 				
 				// Note will be opened by createJournalEntry
 			}
@@ -480,10 +489,16 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				transcriptionResult.languageCode // Pass the language code
 			);
 			
-			// Transcript was already saved immediately after receiving it
-
-			// Create the journal entry
-			await createJournalEntry(this, processedContent, filename);
+			// Generate a title for the note in the detected language
+			const noteTitle = await generateNoteTitle(
+				this, 
+				transcriptionResult.text,
+				transcriptionResult.detectedLanguage, // Pass the detected language
+				transcriptionResult.languageCode // Pass the language code
+			);
+			
+			// Create the journal entry with the title
+			await createJournalEntry(this, processedContent, filename, noteTitle);
 			
 			new Notice('Journal entry processing complete!');
 		} catch (error) {

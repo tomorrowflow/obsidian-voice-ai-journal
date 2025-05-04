@@ -3,6 +3,60 @@ import type VoiceAIJournalPlugin from '../../main';
 import { startTimer } from './timerUtils';
 
 /**
+ * Generate a concise title for a journal entry
+ * 
+ * @param plugin The VoiceAIJournalPlugin instance
+ * @param transcription The transcription text
+ * @returns A concise title (max 4 words)
+ */
+async function generateNoteTitle(
+    plugin: VoiceAIJournalPlugin,
+    transcription: string
+): Promise<string> {
+    try {
+        // Get the AI provider for analysis
+        const analysisProviderId = plugin.settings.aiProviders.analysis;
+        
+        if (!analysisProviderId) {
+            console.warn('No analysis provider configured for title generation');
+            return '';
+        }
+        
+        // Create a prompt for generating a concise title
+        const titlePrompt = 'Generate a concise, descriptive title (maximum 4 words) that captures the essence of this note. The title should be specific and meaningful. ONLY return the title text itself, with no quotes, prefixes, or additional commentary.';
+        
+        // Get the LLM response for title generation
+        const response = await plugin.aiManager.analyzeText(
+            transcription,
+            titlePrompt,
+            analysisProviderId
+        );
+        
+        if (!response) {
+            console.warn('Title generation returned empty response');
+            return '';
+        }
+        
+        // Clean up the response (remove quotes, newlines, etc.)
+        let title = response.trim();
+        title = title.replace(/^["']|["']$/g, ''); // Remove surrounding quotes if present
+        title = title.replace(/\n/g, ' ').trim(); // Replace newlines with spaces
+        
+        // Ensure the title is not too long (max 4 words)
+        const words = title.split(/\s+/);
+        if (words.length > 4) {
+            title = words.slice(0, 4).join(' ');
+        }
+        
+        console.log(`Generated title: "${title}"`);
+        return title;
+    } catch (error) {
+        console.error('Error generating note title:', error);
+        return ''; // Return empty string on error
+    }
+}
+
+/**
  * Extract tags from transcription text using LLM
  * 
  * @param plugin The VoiceAIJournalPlugin instance
@@ -95,7 +149,8 @@ export async function processTranscriptionWithTemplate(
     audioFilePath?: string,
     transcriptFilePath?: string,
     detectedLanguage?: string,
-    languageCode?: string
+    languageCode?: string,
+    generatedTitle?: string
 ): Promise<string> {
     try {
         // Start overall processing timer
@@ -243,6 +298,11 @@ export async function processTranscriptionWithTemplate(
         // Audio file link is now included in the frontmatter properties
         // No need to add it at the bottom of the note
         
+        // If no title was provided, generate one now
+        if (!generatedTitle) {
+            generatedTitle = await generateNoteTitle(plugin, transcription);
+        }
+        
         // Stop the overall timer and log the total processing time
         overallTimer.stop();
         console.log(`[TIMING] Total template processing time: ${overallTimer.getFormattedTime()}`);
@@ -269,13 +329,29 @@ export async function processTranscriptionWithTemplate(
 export async function createJournalEntry(
     plugin: VoiceAIJournalPlugin,
     content: string,
-    noteFilename: string
+    noteFilename: string,
+    generatedTitle?: string
 ): Promise<void> {
     // Start timer for journal entry creation
     const journalCreationTimer = startTimer('Journal Entry Creation');
     try {
+        // If we have a generated title, append it to the filename
+        let finalFilename = noteFilename;
+        if (generatedTitle && generatedTitle.trim() !== '') {
+            // Extract the date part from the filename (assuming format like 'Journal/2025/05/2025-05-04')
+            const dateMatch = noteFilename.match(/([\d-]+)$/);
+            if (dateMatch && dateMatch[1]) {
+                const datePart = dateMatch[1];
+                const dirPath = noteFilename.substring(0, noteFilename.lastIndexOf(datePart));
+                finalFilename = `${dirPath}${datePart} - ${generatedTitle}`;
+            } else {
+                // If we can't extract the date, just append the title
+                finalFilename = `${noteFilename} - ${generatedTitle}`;
+            }
+        }
+        
         // Full path for the note
-        const notePath = `${plugin.settings.noteLocation}/${noteFilename}.md`.replace(/\/+/g, '/');
+        const notePath = `${plugin.settings.noteLocation}/${finalFilename}.md`.replace(/\/+/g, '/');
         
         // Ensure the directory exists
         const folderPath = notePath.substring(0, notePath.lastIndexOf('/'));
