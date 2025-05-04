@@ -240,11 +240,8 @@ export async function processTranscriptionWithTemplate(
             journalContent = `# Journal Entry\n\n## Transcription\n${transcription}\n\n`;
         }
         
-        // We don't need to add the audio file link here anymore as it's in the frontmatter
-        // But we'll keep this for backward compatibility with older templates
-        if (audioFilePath && !journalContent.includes(audioFilePath)) {
-            journalContent += `\n[Original Audio](${audioFilePath})\n`;
-        }
+        // Audio file link is now included in the frontmatter properties
+        // No need to add it at the bottom of the note
         
         // Stop the overall timer and log the total processing time
         overallTimer.stop();
