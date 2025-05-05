@@ -25,8 +25,11 @@ export class RecordingModal extends Modal {
     private options: RecordingModalOptions;
     private isMobile: boolean;
     private scribingMsg: HTMLElement;
+    private scribingStatusMsg: HTMLElement;
     private isScribing = false;
     private uploadButton: HTMLElement;
+    private processingStep = 0;
+    private totalProcessingSteps = 0;
 
     constructor(plugin: VoiceAIJournalPlugin) {
         super(plugin.app);
@@ -147,9 +150,20 @@ export class RecordingModal extends Modal {
         this.scribingMsg.setText('♽ Voice AI Journal in progress');
         this.scribingMsg.setAttr('style', [
             'font-size: 1em;',
-            'margin: 12px 0;',
+            'margin: 12px 0 4px 0;',
             'text-align: center;',
             'display: none;'
+        ].join(' '));
+        
+        // Add status message element for showing processing steps
+        this.scribingStatusMsg = container.createDiv({ cls: 'vaj-scribing-status-msg' });
+        this.scribingStatusMsg.setText('');
+        this.scribingStatusMsg.setAttr('style', [
+            'font-size: 0.9em;',
+            'margin: 0 0 12px 0;',
+            'text-align: center;',
+            'display: none;',
+            'color: var(--text-muted);'
         ].join(' '));
 
         // Initial button state
@@ -323,8 +337,8 @@ export class RecordingModal extends Modal {
             fileInput.addEventListener('change', async () => {
                 if (fileInput.files && fileInput.files.length > 0) {
                     const file = fileInput.files[0];
-                    this.close(); // Close the modal
-                    await this.plugin.processAudioFile(file);
+                    // Don't close the modal immediately, pass it to processAudioFile
+                    await this.plugin.processAudioFile(file, this);
                 }
                 // Remove the input element
                 document.body.removeChild(fileInput);
@@ -377,6 +391,20 @@ export class RecordingModal extends Modal {
         this.isScribing = true;
         this.updateButtonDisplay();
         this.scribingMsg.style.display = '';
+        
+        // Calculate total processing steps: ASR + Tags + Title + Template Sections + Completion
+        // Get the template to count its sections
+        const templateId = this.options.selectedTemplate || this.plugin.settings.defaultTemplate || 'Voice AI Journal';
+        const template = this.plugin.getTemplateById(templateId);
+        const sectionCount = template?.sections?.length || 0;
+        
+        // Total steps: ASR (1) + Tags (1) + Template Sections + Title + Completion (final)
+        this.totalProcessingSteps = 3 + sectionCount + 1; // +1 for completion step
+        this.processingStep = 0;
+        
+        // Initialize with first step
+        this.updateProcessingStatus('Transcribing audio...', 1);
+        
         // Show processing notice
         new Notice('Voice AI Journal: Processing recording...');
         try {
@@ -387,10 +415,11 @@ export class RecordingModal extends Modal {
                 saveAudioFile: this.options.saveAudioFile,
                 automaticSpeechDetection: this.options.automaticSpeechDetection,
                 diaryEntryDate: this.options.diaryEntryDate,
-                selectedTemplate: this.options.selectedTemplate
+                selectedTemplate: this.options.selectedTemplate,
+                modalInstance: this // Pass the modal instance to update status
             });
-            // Close the modal when done
-            this.close();
+            // Delay closing the modal so users can read the final step
+            this.closeWithDelay();
         } catch (error) {
             console.error('[Voice AI Journal] Error processing recording:', error);
             new Notice('Voice AI Journal: Error processing recording');
@@ -398,6 +427,7 @@ export class RecordingModal extends Modal {
             this.isScribing = false;
             this.updateButtonDisplay();
             this.scribingMsg.style.display = 'none';
+            this.scribingStatusMsg.style.display = 'none';
             this.resetButtons();
         }
     }
@@ -409,6 +439,7 @@ export class RecordingModal extends Modal {
             this.isScribing = false;
             this.updateButtonDisplay();
             this.scribingMsg.style.display = 'none';
+            this.scribingStatusMsg.style.display = 'none';
             this.resetButtons();
         }
     }
@@ -428,6 +459,9 @@ export class RecordingModal extends Modal {
         this.setPauseResumeButton('pause');
         this.updateButtonDisplay();
         this.scribingMsg.style.display = 'none';
+        this.scribingStatusMsg.style.display = 'none';
+        // Reset processing steps
+        this.processingStep = 0;
         [this.startButton, this.pauseResumeButton, this.stopButton, this.resetButton].forEach(btn => {
             btn.classList.remove('vaj-btn-disabled');
             btn.removeAttribute('disabled');
@@ -496,6 +530,33 @@ export class RecordingModal extends Modal {
         }
     }
 
+    /**
+     * Update the processing status message
+     * @param statusText The status text to display
+     * @param step The current processing step (1-based)
+     */
+    public updateProcessingStatus(statusText: string, step?: number): void {
+        if (step !== undefined) {
+            this.processingStep = step;
+        } else {
+            this.processingStep++;
+        }
+        
+        // Update the status message
+        this.scribingStatusMsg.setText(`${statusText} (${this.processingStep}/${this.totalProcessingSteps})`);
+        this.scribingStatusMsg.style.display = '';
+    }
+    
+    /**
+     * Close the modal with a delay to allow the user to read the final status
+     * @param delayMs Delay in milliseconds before closing the modal (default: 500ms)
+     */
+    public closeWithDelay(delayMs = 750): void {
+        setTimeout(() => {
+            this.close();
+        }, delayMs);
+    }
+    
     private getCurrentDate(): string {
         const now = new Date();
         const year = now.getFullYear();

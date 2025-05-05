@@ -150,7 +150,8 @@ export async function processTranscriptionWithTemplate(
     transcriptFilePath?: string,
     detectedLanguage?: string,
     languageCode?: string,
-    generatedTitle?: string
+    generatedTitle?: string,
+    modalInstance?: { updateProcessingStatus: (statusText: string, step?: number) => void } // Reference to the modal instance for updating UI
 ): Promise<string> {
     try {
         // Start overall processing timer
@@ -171,6 +172,10 @@ export async function processTranscriptionWithTemplate(
         
         // Extract tags from the transcription
         new Notice('Extracting tags from transcription...');
+        // Update modal status if available
+        if (modalInstance) {
+            modalInstance.updateProcessingStatus('Extracting tags from transcription...', 2);
+        }
         const tagTimer = startTimer('Tag Extraction');
         const tags = await extractTags(plugin, transcription);
         console.log(`Extracted tags in ${tagTimer.getFormattedTime()}:`, tags);
@@ -221,6 +226,12 @@ export async function processTranscriptionWithTemplate(
                 // Process this section with the LLM if it has a prompt
                 if (section.prompt && section.prompt.trim()) {
                     new Notice(`Processing section "${section.title}" with LLM...`);
+                    // Update modal status if available
+                    if (modalInstance) {
+                        // Calculate step number: 3 (ASR + Tags + Title) + current section index
+                        const stepNumber = 3 + selectedTemplate.sections.indexOf(section);
+                        modalInstance.updateProcessingStatus(`Processing section "${section.title}"...`, stepNumber);
+                    }
                     
                     // Start timer for this section
                     const sectionTimer = startTimer(`Section: ${section.title}`);

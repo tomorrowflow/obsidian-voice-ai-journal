@@ -1,5 +1,6 @@
 import { Notice, Plugin, TFile } from 'obsidian';
 import { initAI, waitForAI } from '@obsidian-ai-providers/sdk';
+import { startTimer } from './src/utils/timerUtils';
 
 // Import settings and types
 import { VoiceAIJournalSettings, DEFAULT_SETTINGS, VoiceAIJournalSettingsTab } from './src/settings';
@@ -27,6 +28,7 @@ export interface RecordingProcessOptions {
 	automaticSpeechDetection: boolean;
 	diaryEntryDate: string;
 	selectedTemplate: string;
+	modalInstance?: any; // Reference to the modal instance for updating UI (RecordingModal)
 }
 
 /**
@@ -130,6 +132,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			
 			// Transcribe the audio
 			new Notice('Transcribing audio...');
+			// Update modal status if available
+			if (options.modalInstance) {
+				options.modalInstance.updateProcessingStatus('Transcribing audio...', 1);
+			}
 			let transcriptionResult;
 			
 			if (audioFile) {
@@ -198,6 +204,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 					const transcriptResult = await storeTranscriptAsMarkdown(this, transcriptionResult.text, '', date);
 					transcriptPath = transcriptResult.path;
 					new Notice('Transcript saved successfully');
+					// Update modal status if available
+					if (options.modalInstance) {
+						options.modalInstance.updateProcessingStatus('Transcript saved successfully', 3);
+					}
 				} catch (err) {
 					console.error('Failed to save transcript as markdown:', err);
 				}
@@ -213,16 +223,39 @@ export default class VoiceAIJournalPlugin extends Plugin {
 					audioFile ? audioFile.path : undefined,
 					transcriptPath,
 					transcriptionResult.detectedLanguage,
-					transcriptionResult.languageCode
+					transcriptionResult.languageCode,
+					'', // No generated title yet
+					options.modalInstance // Pass the modal instance for UI updates
 				);
 				
 				// Generate a title for the note in the detected language
+				// Update modal status if available
+				if (options.modalInstance) {
+					// Calculate the total number of steps (transcription + tags + template sections)
+					const template = this.getTemplateById(selectedTemplateId);
+					const sectionCount = template?.sections?.length || 0;
+					const totalSteps = 3 + sectionCount; // ASR (1) + Tags (2) + Template sections + Title (last step)
+					
+					// Title generation is the last step
+					options.modalInstance.updateProcessingStatus('Generating title...', totalSteps);
+				}
+				
+				// Show notification for title generation
+				new Notice('Generating title for journal entry...');
+				
+				// Start timer for title generation
+				const titleTimer = startTimer('Title Generation');
+				
+				// Generate the title
 				const noteTitle = await generateNoteTitle(
 					this, 
 					transcriptionResult.text,
 					transcriptionResult.detectedLanguage, // Pass the detected language
 					transcriptionResult.languageCode // Pass the language code
 				);
+				
+				// Show completion notification with timer
+				new Notice(`Title generated in ${titleTimer.getFormattedTime()}: "${noteTitle || 'No title generated'}"`);
 				
 				// Generate filename using the template manager with the specified date
 				const filename = this.templateManager.generateFilename(this.settings.noteNamingFormat, date);
@@ -234,6 +267,16 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			}
 			
 			new Notice('Voice AI Journal: Processing complete!');
+			// Update modal status if available
+			if (options.modalInstance) {
+				// Calculate the total number of steps + 1 for completion
+				const template = this.getTemplateById(options.selectedTemplate || this.settings.defaultTemplate);
+				const sectionCount = template?.sections?.length || 0;
+				const totalSteps = 3 + sectionCount; // ASR + Tags + Template sections + Title
+				
+				// Final step is completion (one step after title generation)
+				options.modalInstance.updateProcessingStatus('Processing complete!', totalSteps + 1);
+			}
 		} catch (error) {
 			console.error('Failed to process recording:', error);
 			new Notice(`Failed to process recording: ${error instanceof Error ? error.message : String(error)}`);
@@ -390,9 +433,13 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	 * Process an uploaded audio file
 	 * @param file The audio file from the file upload dialog
 	 */
-	async processAudioFile(file: File): Promise<void> {
+	async processAudioFile(file: File, modalInstance?: any): Promise<void> {
 		try {
 			new Notice(`Processing audio file: ${file.name}`);
+			// Update modal status if available
+			if (modalInstance) {
+				modalInstance.updateProcessingStatus(`Processing audio file: ${file.name}`, 1);
+			}
 			
 			// Convert File to ArrayBuffer for saving
 			const buffer = await file.arrayBuffer();
@@ -420,6 +467,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			}
 			
 			new Notice('Transcribing audio file...');
+			// Update modal status if available
+			if (modalInstance) {
+				modalInstance.updateProcessingStatus('Transcribing audio file...', 2);
+			}
 			
 			// Use our ASRManager to transcribe the audio file
 			const transcriptionResult = await this.asrManager.transcribeAudioFileFromVault(audioFile);
@@ -443,6 +494,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			const selectedTemplateId = this.settings.defaultTemplate;
 			
 			new Notice('Analyzing journal entry...');
+			// Update modal status if available
+			if (modalInstance) {
+				modalInstance.updateProcessingStatus('Analyzing journal entry...', 3);
+			}
 			
 			// Import the shared audio processing utility
 			const { processTranscriptionWithTemplate, createJournalEntry } = await import('./src/utils/audioProcessingUtils');
@@ -461,7 +516,24 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				transcriptionResult.languageCode // Pass the language code
 			);
 			
-			// Generate a title for the note in the detected language
+			// Update modal status if available
+			if (modalInstance) {
+				// Calculate the total number of steps (transcription + template sections)
+				const template = this.getTemplateById(selectedTemplateId);
+				const sectionCount = template?.sections?.length || 0;
+				const totalSteps = 2 + sectionCount; // Transcription (1) + Template sections + Title (last step)
+				
+				// Title generation is the last step
+				modalInstance.updateProcessingStatus('Generating title...', totalSteps);
+			}
+			
+			// Show notification for title generation
+			new Notice('Generating title for journal entry...');
+			
+			// Start timer for title generation
+			const titleTimer = startTimer('Title Generation');
+			
+			// Generate the title
 			const noteTitle = await generateNoteTitle(
 				this, 
 				transcriptionResult.text,
@@ -469,10 +541,26 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				transcriptionResult.languageCode // Pass the language code
 			);
 			
+			// Show completion notification with timer
+			new Notice(`Title generated in ${titleTimer.getFormattedTime()}: "${noteTitle || 'No title generated'}"`);
+			
 			// Create the journal entry with the title
 			await createJournalEntry(this, processedContent, filename, noteTitle);
 			
 			new Notice('Journal entry processing complete!');
+			// Update modal status if available
+			if (modalInstance) {
+				// Calculate the total number of steps + 1 for completion
+				const template = this.getTemplateById(selectedTemplateId);
+				const sectionCount = template?.sections?.length || 0;
+				const totalSteps = 2 + sectionCount; // Transcription + Template sections + Title
+				
+				// Final step is completion (one step after title generation)
+				modalInstance.updateProcessingStatus('Processing complete!', totalSteps + 1);
+				
+				// Delay closing the modal so users can read the final step
+				modalInstance.closeWithDelay();
+			}
 		} catch (error) {
 			console.error('Failed to process audio file:', error);
 			new Notice(`Failed to process audio file: ${error instanceof Error ? error.message : String(error)}`);
