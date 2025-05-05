@@ -31,6 +31,7 @@ export class RecordingModal extends Modal {
     private processingStep = 0;
     private totalProcessingSteps = 0;
     private finalRecordingTime: number | null = null;
+    private wakeLock: any = null; // Store the wake lock object
 
     constructor(plugin: VoiceAIJournalPlugin) {
         super(plugin.app);
@@ -76,6 +77,9 @@ export class RecordingModal extends Modal {
         
         // Cancel any ongoing recording
         this.plugin.cancelRecording();
+        
+        // Release the wake lock when closing the modal
+        this.releaseWakeLock();
     }
 
     private createModalContent() {
@@ -375,6 +379,9 @@ export class RecordingModal extends Modal {
             this.pauseResumeButton.style.display = 'inline-block';
             this.stopButton.style.display = 'inline-block';
             this.resetButton.style.display = 'inline-block';
+            
+            // Request wake lock to keep screen on during recording
+            await this.requestWakeLock();
         }
     }
 
@@ -561,10 +568,12 @@ export class RecordingModal extends Modal {
     
     /**
      * Close the modal with a delay to allow the user to read the final status
-     * @param delayMs Delay in milliseconds before closing the modal (default: 500ms)
+     * @param delayMs Delay in milliseconds before closing the modal (default: 750ms)
      */
     public closeWithDelay(delayMs = 750): void {
         setTimeout(() => {
+            // Release the wake lock before closing the modal
+            this.releaseWakeLock();
             this.close();
         }, delayMs);
     }
@@ -576,5 +585,50 @@ export class RecordingModal extends Modal {
         const day = String(now.getDate()).padStart(2, '0');
         
         return `${year}-${month}-${day}`;
+    }
+    
+    /**
+     * Request a wake lock to keep the screen on
+     * This is particularly important for iOS devices where the screen might turn off
+     * during processing, potentially interrupting the completion of the task
+     */
+    private async requestWakeLock(): Promise<void> {
+        if ('wakeLock' in navigator) {
+            try {
+                // Request a screen wake lock
+                this.wakeLock = await (navigator as any).wakeLock.request('screen');
+                
+                console.log('[Voice AI Journal] Wake lock acquired');
+                
+                // Add a listener to reacquire the wake lock if it's released
+                this.wakeLock.addEventListener('release', () => {
+                    console.log('[Voice AI Journal] Wake lock released');
+                    
+                    // If we're still recording or processing, try to reacquire the wake lock
+                    if (this.plugin.getRecordingState() !== 'inactive' || this.isScribing) {
+                        this.requestWakeLock();
+                    }
+                });
+            } catch (err) {
+                console.error('[Voice AI Journal] Error acquiring wake lock:', err);
+            }
+        } else {
+            console.log('[Voice AI Journal] Wake Lock API not supported in this browser');
+        }
+    }
+    
+    /**
+     * Release the wake lock if it's active
+     */
+    private releaseWakeLock(): void {
+        if (this.wakeLock) {
+            try {
+                this.wakeLock.release();
+                this.wakeLock = null;
+                console.log('[Voice AI Journal] Wake lock released manually');
+            } catch (err) {
+                console.error('[Voice AI Journal] Error releasing wake lock:', err);
+            }
+        }
     }
 }
