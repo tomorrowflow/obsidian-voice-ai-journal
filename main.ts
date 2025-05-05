@@ -87,9 +87,6 @@ export default class VoiceAIJournalPlugin extends Plugin {
 	 * @param options Options for processing the recording
 	 */
 	async stopAndProcess(options: RecordingProcessOptions): Promise<void> {
-	// ...rest of method...
-	// After transcription, store transcript as markdown
-	// (Implementation added below)
 		try {
 			// Show processing notice
 			new Notice('Voice AI Journal: Processing recording...');
@@ -100,34 +97,31 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			// Get the file extension for the audio
 			const fileExt = this.recordingManager.getRecordingFileExtension().substring(1); // Remove the dot
 
-			// Get recordings location from settings
-			const recordingsFolder = this.settings.recordingsLocation || 'Recordings';
-			
-			// Create folder if it doesn't exist
-			await this.fileService.ensureFolderExists(recordingsFolder);
-			
-			// Generate a filename with timestamp to avoid duplicates
-			const timestamp = new Date().toISOString().replace(/[:T-]/g, '').slice(0, 14);
-			const fileName = `recording-${timestamp}.${fileExt}`;
-			const filePath = `${recordingsFolder}/${fileName}`;
-			
 			// Convert Blob to ArrayBuffer for saving to vault
 			const buffer = await audioBlob.arrayBuffer();
-			const array = new Uint8Array(buffer);
 			
 			// Save audio file if option is enabled
 			let audioFile: TFile | null = null;
 			if (options.saveAudioFile) {
-				// Save to vault
-				await this.app.vault.createBinary(filePath, array);
-				new Notice(`Audio file saved to ${filePath}`);
+				// Import the file storage utility
+				const { storeFileWithStructure } = await import('./src/utils/fileStoreUtils');
+				const audioDate = new Date();
 				
-				// Get file reference for transcription
-				const savedFile = this.app.vault.getAbstractFileByPath(filePath);
-				if (!savedFile || !(savedFile instanceof TFile)) {
-					throw new Error('Could not find the saved audio file');
+				// Store the audio file with the structured path
+				audioFile = await storeFileWithStructure({
+					plugin: this,
+					type: 'audio',
+					baseFileName: '', // Empty as filename is generated in buildStructuredPath
+					content: buffer,
+					date: audioDate,
+					extension: `.${fileExt}`
+				});
+				
+				if (audioFile) {
+					new Notice(`Audio file saved to ${audioFile.path}`);
+				} else {
+					throw new Error('Could not save the audio file');
 				}
-				audioFile = savedFile;
 			}
 			
 			// Transcribe the audio
@@ -171,7 +165,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				
 				// Add link to the audio file if it was saved
 				if (audioFile) {
-					content += `[Original Audio](${filePath})\n`;
+					content += `[Original Audio](${audioFile.path})\n`;
 				}
 				
 				// Create the note
