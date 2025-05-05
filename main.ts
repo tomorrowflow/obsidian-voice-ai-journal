@@ -25,10 +25,9 @@ export interface RecordingProcessOptions {
 	appendToActiveNote: boolean;
 	onlyTranscribe: boolean;
 	saveAudioFile: boolean;
-	automaticSpeechDetection: boolean;
 	diaryEntryDate: string;
 	selectedTemplate: string;
-	modalInstance?: any; // Reference to the modal instance for updating UI (RecordingModal)
+	modalInstance?: RecordingModal; // Reference to the modal instance for updating UI
 }
 
 /**

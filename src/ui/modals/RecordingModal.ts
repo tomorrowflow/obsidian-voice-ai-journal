@@ -6,7 +6,6 @@ export interface RecordingModalOptions {
     appendToActiveNote: boolean;
     onlyTranscribe: boolean;
     saveAudioFile: boolean;
-    automaticSpeechDetection: boolean;
     diaryEntryDate: string;
     selectedTemplate: string;
 }
@@ -45,7 +44,6 @@ export class RecordingModal extends Modal {
             appendToActiveNote: this.plugin.settings.appendToExistingNote,
             onlyTranscribe: false, // Default to false, can be changed in UI
             saveAudioFile: true, // Default to true, can be changed in UI
-            automaticSpeechDetection: this.plugin.settings.automaticSpeechDetection,
             diaryEntryDate: this.getCurrentDate(),
             selectedTemplate: this.plugin.settings.defaultTemplate || 'Voice AI Journal'
         };
@@ -217,15 +215,6 @@ export class RecordingModal extends Modal {
                 .setValue(this.options.saveAudioFile)
                 .onChange(value => {
                     this.options.saveAudioFile = value;
-                }));
-        
-        // Multi-speaker detection (if supported)
-        new Setting(optionsContainer)
-            .setName('Multi-speaker enabled')
-            .addToggle(toggle => toggle
-                .setValue(this.options.automaticSpeechDetection)
-                .onChange(value => {
-                    this.options.automaticSpeechDetection = value;
                 }));
         
         // Diary entry date
@@ -430,7 +419,6 @@ export class RecordingModal extends Modal {
                 appendToActiveNote: this.options.appendToActiveNote,
                 onlyTranscribe: this.options.onlyTranscribe,
                 saveAudioFile: this.options.saveAudioFile,
-                automaticSpeechDetection: this.options.automaticSpeechDetection,
                 diaryEntryDate: this.options.diaryEntryDate,
                 selectedTemplate: this.options.selectedTemplate,
                 modalInstance: this // Pass the modal instance to update status

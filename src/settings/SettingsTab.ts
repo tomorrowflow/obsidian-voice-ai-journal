@@ -119,18 +119,6 @@ export class VoiceAIJournalSettingsTab extends PluginSettingTab {
 				});
 			});
 
-		// Automatic speech detection toggle
-		new Setting(containerEl)
-			.setName('Automatic Speech Detection')
-			.setDesc('Automatically start/stop recording based on speech detection')
-			.addToggle(toggle => {
-				toggle.setValue(this.plugin.settings.automaticSpeechDetection);
-				
-				toggle.onChange(async (value: boolean) => {
-					this.plugin.settings.automaticSpeechDetection = value;
-					await this.plugin.saveSettings();
-				});
-			});
 
 		// Microphone selection
 		new Setting(containerEl)

@@ -30,15 +30,7 @@ export class GeneralSettingsTab {
             }
         );
 
-        this.createToggle(
-            'Automatic Speech Detection',
-            'Automatically start/stop recording based on speech detection',
-            this.plugin.settings.automaticSpeechDetection,
-            async (value: boolean) => {
-                this.plugin.settings.automaticSpeechDetection = value;
-                await this.plugin.saveSettings();
-            }
-        );
+        // Automatic Speech Detection toggle removed
 
         // Microphone selection omitted for brevity; follow similar pattern
     }

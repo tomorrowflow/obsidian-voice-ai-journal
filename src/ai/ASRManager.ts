@@ -366,7 +366,7 @@ export class ASRManager {
             combinedArray.set(footerArray, headerArray.length + audioBuffer.byteLength);
             
             // Prepare URL with parameters
-            let url = `${baseUrl}/asr?output=json`;
+            const url = `${baseUrl}/asr?output=json`;
             // We need to use the language code for the ASR API, not the full language name
             const languageToUse = languageCode || (language !== 'auto' ? language : undefined);
             
@@ -380,11 +380,6 @@ export class ASRManager {
             
             // Log the final URL for debugging
             console.log(`[VoiceAIJournal] Sending transcription request to: ${url}`);
-            
-            // Add diarization parameter if enabled
-            if (this.plugin.settings.automaticSpeechDetection) {
-                url += '&diarize=true';
-            }
             
             // Send the request with the proper Content-Type header
             new Notice('Voice AI Journal: Transcribing audio...');
