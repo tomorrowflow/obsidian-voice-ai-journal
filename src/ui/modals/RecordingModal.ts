@@ -30,6 +30,7 @@ export class RecordingModal extends Modal {
     private uploadButton: HTMLElement;
     private processingStep = 0;
     private totalProcessingSteps = 0;
+    private finalRecordingTime: number | null = null;
 
     constructor(plugin: VoiceAIJournalPlugin) {
         super(plugin.app);
@@ -69,6 +70,9 @@ export class RecordingModal extends Modal {
             window.clearInterval(this.timerInterval);
             this.timerInterval = null;
         }
+        
+        // Reset the final recording time
+        this.finalRecordingTime = null;
         
         // Cancel any ongoing recording
         this.plugin.cancelRecording();
@@ -354,7 +358,10 @@ export class RecordingModal extends Modal {
     private startTimerUpdates() {
         // Update the timer every 10ms for smooth display
         this.timerInterval = window.setInterval(() => {
-            const recordingTime = this.plugin.getRecordingTime();
+            // If we have a final recording time stored, use that instead of getting the current time
+            const recordingTime = this.finalRecordingTime !== null 
+                ? this.finalRecordingTime 
+                : this.plugin.getRecordingTime();
             this.recordingTimer.setText(formatRecordingTime(recordingTime));
         }, 10);
     }
@@ -386,6 +393,9 @@ export class RecordingModal extends Modal {
     }
 
     private async handleComplete() {
+        // Store the final recording time before stopping
+        this.finalRecordingTime = this.plugin.getRecordingTime();
+        
         // Disable buttons during processing
         this.disableButtons();
         this.isScribing = true;
@@ -435,6 +445,8 @@ export class RecordingModal extends Modal {
     private handleReset() {
         const recordingState = this.plugin.getRecordingState();
         if (recordingState !== 'inactive') {
+            // Clear the final recording time when explicitly resetting
+            this.finalRecordingTime = null;
             this.plugin.cancelRecording();
             this.isScribing = false;
             this.updateButtonDisplay();
