@@ -14,17 +14,58 @@ interface AudioQualitySettings {
     bitRate: number;
 }
 
+// Detect if running on iOS
+const isIOS = (): boolean => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+// Check if a specific MIME type is supported by the browser
+const isMimeTypeSupported = (mimeType: string): boolean => {
+    try {
+        return MediaRecorder.isTypeSupported(mimeType);
+    } catch (e) {
+        console.error(`[Voice AI Journal] Error checking MIME type support for ${mimeType}:`, e);
+        return false;
+    }
+};
+
+// Determine the best default MIME type based on browser support
+const getBestDefaultMimeType = (): SupportedMimeType => {
+    // Preferred order: MP4 (most compatible), WebM with Opus, WebM, Ogg with Opus
+    const preferredTypes: SupportedMimeType[] = [
+        'audio/mp4',
+        'audio/webm; codecs=opus',
+        'audio/webm',
+        'audio/ogg; codecs=opus'
+    ];
+    
+    for (const type of preferredTypes) {
+        if (isMimeTypeSupported(type)) {
+            console.log(`[Voice AI Journal] Using supported MIME type: ${type}`);
+            return type;
+        }
+    }
+    
+    // If none are supported, return WebM as fallback (most browsers support this)
+    console.log('[Voice AI Journal] No preferred MIME types supported, falling back to WebM');
+    return 'audio/webm';
+};
+
+// Get the best default MIME type once at initialization
+const bestDefaultMimeType = getBestDefaultMimeType();
+
 const AUDIO_QUALITY_SETTINGS: Record<'low' | 'medium' | 'high', AudioQualitySettings> = {
     low: {
-        mimeType: 'audio/webm; codecs=opus',
+        mimeType: bestDefaultMimeType,
         bitRate: 16000
     },
     medium: {
-        mimeType: 'audio/webm; codecs=opus',
+        mimeType: bestDefaultMimeType,
         bitRate: 32000
     },
     high: {
-        mimeType: 'audio/webm; codecs=opus',
+        mimeType: bestDefaultMimeType,
         bitRate: 48000
     }
 };
@@ -37,17 +78,17 @@ export class AudioRecorder {
     private recordingChunks: BlobPart[] = [];
     private stream: MediaStream | null = null;
     private qualitySetting: 'low' | 'medium' | 'high';
-    private recordingStartTime: number = 0;
-    private recordingDuration: number = 0;
-    private pauseStartTime: number = 0;
-    private isRecording: boolean = false;
-    private isPaused: boolean = false;
-    private timerInterval: number | null = null;
+    private recordingStartTime: number;
+    private recordingDuration: number;
+    private pauseStartTime: number;
+    private isRecording: boolean;
+    private isPaused: boolean;
+    private timerInterval: number | null;
     
     // Event callbacks
-    private onStatusChangeCallback: ((status: RecordingStatus) => void) | null = null;
-    private onTimeUpdateCallback: ((time: number) => void) | null = null;
-    private onErrorCallback: ((error: Error) => void) | null = null;
+    private onStatusChangeCallback: ((status: RecordingStatus) => void);
+    private onTimeUpdateCallback: ((time: number) => void);
+    private onErrorCallback: ((error: Error) => void);
 
     constructor(quality: 'low' | 'medium' | 'high' = 'medium') {
         this.qualitySetting = quality;
@@ -147,8 +188,16 @@ export class AudioRecorder {
         }
 
         return new Promise((resolve) => {
+            // Store mediaRecorder in a local variable to ensure it's not null
+            const mediaRecorder = this.mediaRecorder;
+            if (!mediaRecorder) {
+                console.error('[Voice AI Journal] MediaRecorder is null in stopRecording');
+                resolve(null);
+                return;
+            }
+            
             // Set up the onstop event handler to resolve the promise
-            this.mediaRecorder!.onstop = () => {
+            mediaRecorder.onstop = () => {
                 this.isRecording = false;
                 this.isPaused = false;
                 this.stopTimer();
@@ -158,7 +207,7 @@ export class AudioRecorder {
                     return;
                 }
                 
-                const mimeType = this.mediaRecorder!.mimeType;
+                const mimeType = mediaRecorder.mimeType;
                 const blob = new Blob(this.recordingChunks, { type: mimeType });
                 
                 this.recordingChunks = [];
@@ -175,11 +224,11 @@ export class AudioRecorder {
             };
             
             // Create an empty event handler for error during stop
-            this.mediaRecorder!.onerror = null;
+            mediaRecorder.onerror = null;
             
             // Stop recording
             try {
-                this.mediaRecorder!.stop();
+                mediaRecorder.stop();
             } catch (error) {
                 this.triggerError(error instanceof Error ? error : new Error('Failed to stop recording'));
                 resolve(null);
@@ -247,26 +296,39 @@ export class AudioRecorder {
      * Check if a specific MIME type is supported
      */
     private getSupportedMimeType(preferred: SupportedMimeType): SupportedMimeType {
-        const mimeTypes: SupportedMimeType[] = [
-            'audio/webm; codecs=opus',
-            'audio/webm',
-            'audio/ogg; codecs=opus',
-            'audio/mp4'
-        ];
-        
-        // Try the preferred type first
-        if (MediaRecorder.isTypeSupported(preferred)) {
+        // Always try to use the preferred type first if it's supported
+        if (isMimeTypeSupported(preferred)) {
+            console.log(`[Voice AI Journal] Using preferred format: ${preferred}`);
             return preferred;
         }
         
-        // Then try others
-        for (const type of mimeTypes) {
-            if (MediaRecorder.isTypeSupported(type)) {
+        // Define priority order based on platform and compatibility
+        const priorityMimeTypes: SupportedMimeType[] = isIOS()
+            ? [
+                // iOS priority - MP4 first, then others
+                'audio/mp4',
+                'audio/webm',
+                'audio/webm; codecs=opus',
+                'audio/ogg; codecs=opus'
+              ]
+            : [
+                // Non-iOS priority - Try MP4 first for compatibility, then others
+                'audio/mp4',
+                'audio/webm; codecs=opus',
+                'audio/webm',
+                'audio/ogg; codecs=opus'
+              ];
+        
+        // Try each type in priority order
+        for (const type of priorityMimeTypes) {
+            if (isMimeTypeSupported(type)) {
+                console.log(`[Voice AI Journal] Using supported format: ${type}`);
                 return type;
             }
         }
         
-        // Fall back to default
+        // If we get here, no supported types were found
+        console.warn('[Voice AI Journal] No supported audio format found, falling back to WebM');
         return 'audio/webm';
     }
 
@@ -275,19 +337,26 @@ export class AudioRecorder {
      */
     getFileExtension(): string {
         if (!this.mediaRecorder) {
-            return '.webm';
+            // Default to m4a on iOS, webm otherwise
+            const defaultExt = isIOS() ? '.m4a' : '.webm';
+            console.log(`[Voice AI Journal] No media recorder, using default extension: ${defaultExt}`);
+            return defaultExt;
         }
         
         const mimeType = this.mediaRecorder.mimeType;
+        console.log(`[Voice AI Journal] Current recording MIME type: ${mimeType}`);
         
         if (mimeType.includes('webm')) {
             return '.webm';
         } else if (mimeType.includes('ogg')) {
             return '.ogg';
         } else if (mimeType.includes('mp4')) {
+            return '.m4a'; // Use m4a extension for MP4 audio
+        } else if (isIOS()) {
+            // Fallback for iOS - use m4a if we can't determine from MIME type
             return '.m4a';
         } else {
-            return '.webm'; // default
+            return '.webm'; // default fallback for other platforms
         }
     }
 

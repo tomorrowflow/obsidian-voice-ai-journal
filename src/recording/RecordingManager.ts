@@ -12,7 +12,7 @@ export class RecordingManager {
     private mediaRecorder: MediaRecorder | null = null;
     private recordingState: RecordingState = 'inactive';
     private recordingStartTime: number | null = null;
-    private recordingPausedDuration: number = 0;
+    private recordingPausedDuration: number;
     private lastPausedTime: number | null = null;
 
     constructor(plugin: VoiceAIJournalPlugin) {
@@ -89,10 +89,10 @@ export class RecordingManager {
                 
                 // Try with fallback MIME type options
                 try {
-                    // Try with common MIME types that work on most devices
+                    // Try with common MIME types that work on most devices - prioritize MP4 for iOS compatibility
                     const mimeTypes = [
+                        'audio/mp4',  // Prioritize MP4 for iOS compatibility
                         'audio/webm',
-                        'audio/mp4',
                         'audio/ogg',
                         'audio/wav'
                     ];
@@ -100,10 +100,16 @@ export class RecordingManager {
                     // Try each MIME type until one works
                     for (const mimeType of mimeTypes) {
                         try {
-                            this.mediaRecorder = new MediaRecorder(stream, { mimeType });
-                            break;
+                            console.log(`[Voice AI Journal] Trying MIME type: ${mimeType}`);
+                            if (MediaRecorder.isTypeSupported(mimeType)) {
+                                this.mediaRecorder = new MediaRecorder(stream, { mimeType });
+                                console.log(`[Voice AI Journal] Successfully using MIME type: ${mimeType}`);
+                                break;
+                            } else {
+                                console.log(`[Voice AI Journal] MIME type ${mimeType} not supported by browser`);
+                            }
                         } catch (e) {
-                            console.log(`[Voice AI Journal] MIME type ${mimeType} not supported`);
+                            console.log(`[Voice AI Journal] Error with MIME type ${mimeType}:`, e);
                         }
                     }
                     
@@ -332,7 +338,10 @@ export class RecordingManager {
             return null;
         }
         
-        return this.mediaRecorder.mimeType || 'audio/webm';
+        // Get the MIME type from the media recorder
+        const mimeType = this.mediaRecorder.mimeType || 'audio/webm';
+        console.log(`[Voice AI Journal] Current recording MIME type: ${mimeType}`);
+        return mimeType;
     }
 
     /**
@@ -352,6 +361,24 @@ export class RecordingManager {
             'audio/x-wav': '.wav'
         };
         
-        return extensionMap[mimeType] || '.webm';
+        // Check for partial MIME type matches (e.g., 'audio/mp4; codecs=...')
+        for (const [key, ext] of Object.entries(extensionMap)) {
+            if (mimeType.includes(key)) {
+                console.log(`[Voice AI Journal] Matched MIME type ${mimeType} to extension ${ext}`);
+                return ext;
+            }
+        }
+        
+        // iOS detection for better fallback
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
+        if (isIOS) {
+            console.log('[Voice AI Journal] iOS device detected, using .m4a extension as fallback');
+            return '.m4a';
+        }
+        
+        console.log(`[Voice AI Journal] No extension match for MIME type ${mimeType}, using .webm as fallback`);
+        return '.webm';
     }
 }

@@ -94,8 +94,10 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			const audioBlob = await this.recordingManager.stopRecording();
 			
 			// Get the file extension for the audio
-			const fileExt = this.recordingManager.getRecordingFileExtension().substring(1); // Remove the dot
-
+			const rawExtension = this.recordingManager.getRecordingFileExtension();
+			const fileExt = rawExtension.substring(1); // Remove the dot
+			console.log(`[Voice AI Journal] Using file extension: ${rawExtension} -> ${fileExt}`);
+			
 			// Convert Blob to ArrayBuffer for saving to vault
 			const buffer = await audioBlob.arrayBuffer();
 			
@@ -106,6 +108,14 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				const { storeFileWithStructure } = await import('./src/utils/fileStoreUtils');
 				const audioDate = new Date();
 				
+				// Force m4a extension for iOS devices
+				const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+						(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+				
+				// Use m4a for iOS, otherwise use the detected extension
+				const finalExtension = isIOS ? '.m4a' : `.${fileExt}`;
+				console.log(`[Voice AI Journal] Final file extension for saving: ${finalExtension} (iOS detected: ${isIOS})`);
+				
 				// Store the audio file with the structured path
 				audioFile = await storeFileWithStructure({
 					plugin: this,
@@ -113,7 +123,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 					baseFileName: '', // Empty as filename is generated in buildStructuredPath
 					content: buffer,
 					date: audioDate,
-					extension: `.${fileExt}`
+					extension: finalExtension
 				});
 				
 				if (audioFile) {
@@ -191,7 +201,7 @@ export default class VoiceAIJournalPlugin extends Plugin {
 				// Import the audio processing utilities
 				const { processTranscriptionWithTemplate, createJournalEntry } = await import('./src/utils/audioProcessingUtils');
 				
-				// Store the raw transcript as a markdown note
+				// Store the raw transcript immediately after receiving it
 				let transcriptPath = '';
 				try {
 					const transcriptResult = await storeTranscriptAsMarkdown(this, transcriptionResult.text, '', date);
@@ -444,14 +454,22 @@ export default class VoiceAIJournalPlugin extends Plugin {
 			const { storeFileWithStructure } = await import('./src/utils/fileStoreUtils');
 			const audioDate = new Date();
 			
-			// Store the audio file with the structured path
+			// Force m4a extension for iOS devices
+			const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+					(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+			
+				// Use m4a for iOS, otherwise use the detected extension
+			const finalExtension = isIOS ? '.m4a' : `.${fileExt}`;
+			console.log(`[Voice AI Journal] Final file extension for saving: ${finalExtension} (iOS detected: ${isIOS})`);
+			
+				// Store the audio file with the structured path
 			const audioFile = await storeFileWithStructure({
 				plugin: this,
 				type: 'audio',
 				baseFileName: '', // Empty as filename is generated in buildStructuredPath
 				content: buffer,
 				date: audioDate,
-				extension: `.${fileExt}`
+				extension: finalExtension
 			});
 			
 			new Notice(`Audio file saved successfully`);
