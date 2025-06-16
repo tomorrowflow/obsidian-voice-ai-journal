@@ -426,8 +426,49 @@ ${mermaidCode}
     }
 
     /**
+     * Generate embeddings for text using the AI provider
+     *
+     * @param text The text to generate embeddings for
+     * @param providerId Optional AI provider ID to use for embeddings
+     * @returns The embedding vector as a number array
+     */
+    async generateEmbedding(text: string, providerId?: string): Promise<number[]> {
+        if (!this.isInitialized()) {
+            throw new Error('AI Providers not initialized');
+        }
+
+        // Find the provider
+        const provider = providerId ? this.getProviderById(providerId) : (this.aiProviders?.providers?.[0] || null);
+        if (!provider) {
+            throw new Error('No AI provider available for embeddings');
+        }
+
+        try {
+            // Check if the provider supports embeddings
+            if (!this.aiProviders?.embed) {
+                throw new Error('AI Providers does not support embedding generation');
+            }
+
+            // Generate embeddings using AI Providers
+            const embedding = await this.aiProviders.embed({
+                provider: provider,
+                input: text
+            });
+
+            if (!embedding || !Array.isArray(embedding)) {
+                throw new Error('Invalid embedding response from AI provider');
+            }
+
+            return embedding;
+        } catch (error) {
+            console.error('Embedding generation error:', error);
+            throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    /**
      * Removes <think>...</think> sections from the LLM response
-     * 
+     *
      * @param text The original LLM response text
      * @returns The cleaned text without thinking sections
      */

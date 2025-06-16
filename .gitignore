@@ -20,3 +20,10 @@ data.json
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
+logs/conport.log
+.roo/mcp.json
+.gitignore
+.roo/rules/rules.md
+alembic.ini
+alembic/
+context_portal/

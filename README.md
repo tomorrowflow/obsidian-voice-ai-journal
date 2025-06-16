@@ -1,58 +1,78 @@
-# Voice AI Journal for Obsidian
+# Voice AI Journal for Obsidian 🎙️
 
-![Voice AI Journal Banner](https://raw.githubusercontent.com/tomorrowflow/obsidian-voice-ai-journal/main/assets/banner.png)
+Transform your voice into insights with Voice AI Journal, an Obsidian plugin that not only records your voice and transcribes it, but also summarizes and enriches your notes with the power of AI. Dive into a seamless experience where your spoken words are effortlessly converted into a structured, easy-to-navigate knowledge base.
 
-Voice AI Journal is a powerful Obsidian plugin that transforms your spoken words into structured journal entries using AI transcription and analysis. Record your thoughts, reflections, or ideas, and let the plugin convert them into beautifully formatted Markdown notes with intelligent summaries, insights, and visualizations.
+**Attention, this plugin is not published yet. You need to clone the repository and install it manually to test it.**
 
-## Features
+## 🌟 Key Features
 
-### Voice Recording
+### Voice-to-Text Magic
 - **Easy Recording Interface**: Start, pause, resume, and stop recordings with a simple interface
 - **Recording Timer**: Keep track of your recording duration
 - **Microphone Selection**: Choose from available microphones on your device
 - **Mobile Support**: Full functionality on mobile devices
+- **File Upload**: Process existing audio files (desktop only)
 
-### AI-Powered Transcription
+### Robust Transcription and Analysis
 - **Multiple Transcription Options**: Use Obsidian's built-in AI providers or a local Whisper instance
 - **Language Detection**: Automatic detection of the spoken language
-
-### Intelligent Analysis
+- **Multi-language Support**: Configurable transcription and output languages
 - **Smart Summaries**: AI-generated summaries of your recordings
 - **Insightful Analysis**: Extract key insights and patterns from your spoken content
+
+### Interactive and Visual
 - **Automatic Titling**: Generate relevant titles for your journal entries
-- **Mermaid Diagrams**: Create visual representations of your thoughts
+- **Mermaid Diagrams**: Create visual representations of your thoughts and concepts
 - **Question Answering**: Identify and answer questions you ask during recordings
+- **Interactive Queries**: Ask questions mid-recording, and get answers integrated into your notes
 
 ### Flexible Templates
 - **Customizable Templates**: Create and edit templates for different types of journal entries
-- **Template Editor**: Visual editor for managing your templates
+- **Visual Template Editor**: User-friendly interface for template management
 - **Section Control**: Enable or disable specific sections based on your needs
+- **Default Template**: Pre-configured template with summary, insights, charts, and Q&A sections
 
-### File Management
+### Reliable File Management
 - **Organized Storage**: Automatically organize your recordings, transcripts, and journal entries
 - **File Uploading**: Upload existing audio files for processing (desktop only)
 - **Append to Notes**: Option to append new recordings to existing notes
+- **Configurable Locations**: Separate folder settings for different file types
+- **Progressive Saving**: Designed with mobile users in mind, ensuring no step is a single point of failure
 
-## Getting Started
+## 📸 Screenshots
+
+(... will follow)
+
+## 🚀 Getting Started
 
 ### Installation
 
-1. Open Obsidian and go to Settings
-2. Navigate to Community Plugins and disable Safe Mode
-3. Click Browse and search for "Voice AI Journal"
-4. Install the plugin and enable it
+1. In Obsidian, navigate to `Settings` > `Community Plugins`.
+2. Search for `Voice AI Journal` and click `Install`.
+3. Once installed, toggle `Enable` to activate the plugin.
 
 ### Quick Start
 
-1. Configure AI providers in Obsidian settings to do transcription and analysis
-2. Click the microphone icon in the ribbon or use the command palette to start a recording
-3. Speak clearly into your microphone
-4. Click the stop button when finished
-5. Configure processing options (template, save audio, etc.)
-6. Wait for the plugin to process your recording
-7. Review your new journal entry
+1. Configure AI providers in Obsidian settings to do transcription and analysis.
+2. Click the microphone icon in the ribbon or use the command palette to start a recording.
+3. Speak clearly into your microphone.
+4. Click the stop button when finished.
+5. Configure processing options (template, save audio, etc.).
+6. Wait for the plugin to process your recording.
+7. Review your new journal entry.
 
-## Configuration
+## 🕹️ Commands
+
+### From the Ribbon button
+- Click the microphone icon to open the recording modal
+
+### From the Command Palette
+Type "Voice AI Journal" to see available commands:
+- **Begin Recording**: Opens the recording modal for you to start recording
+- **Transcribe & Summarize Current File**: Run this on an open audio file - it will process this file
+- **Fix Mermaid Chart**: Sometimes the generated Mermaid Chart is invalid, this will attempt to fix it
+
+## ⚙️ Settings / Config
 
 ### General Settings
 
@@ -75,7 +95,29 @@ The plugin comes with a default template that includes:
 
 You can customize these sections or create entirely new templates through the Template Editor.
 
-## Using File Upload
+### AI Provider Configuration
+
+- **OpenAI API Key (Required)**: Essential for transcription and summarization. Set your key in the `Settings`.
+- **Local Whisper Setup**: If you prefer to use a local Whisper instance for transcription:
+  1. Set up a Whisper API server on your local machine
+  2. In plugin settings, select "Local Whisper" as your transcription provider
+  3. Enter the endpoint URL (default: http://localhost:9000)
+
+## 📖 How to Use
+
+1. **Start Recording**: Trigger the Voice AI Journal action or select it from the ribbon and begin recording.
+2. **Interactive Queries**: Pose questions during recording to have them answered and integrated into your notes just say "Hey Voice AI Journal" followed by the question.
+3. **Review and Explore**: Access the transcribed text, summary, insights, and Mermaid charts directly in your note.
+
+## 📱 Mobile Usage
+
+Voice AI Journal shines in mobile scenarios, gracefully handling interruptions or connectivity issues. If any step fails, simply resume without losing any progress. This is a work in progress, you will never lose your audio, but it will regenerate the note, transcription and summary.
+
+### Known Issues
+
+1. On iOS, the screen must be **ON** while recording otherwise it won't capture your voice. This is a limitation of Obsidian.
+
+## 📤 Using File Upload
 
 On desktop devices, you can upload existing audio files for processing:
 
@@ -84,7 +126,7 @@ On desktop devices, you can upload existing audio files for processing:
 3. Select an audio file from your computer
 4. The plugin will process the file just like a recording
 
-## Advanced Usage
+## 🛠️ Advanced Usage
 
 ### Local Whisper Setup
 
@@ -103,13 +145,47 @@ Create specialized templates for different types of journal entries:
 3. Configure sections with custom prompts
 4. Save and select your template when processing recordings
 
-## Troubleshooting
+## 🛠️ How to Contribute
+
+Your insights, improvements, and feedback are what make Voice AI Journal better. Feel free to submit issues, pull requests, or suggestions to enhance the plugin further.
+
+## 🙏 Acknowledgements
+
+A deep bow, acknowledgement and gratitude to the innumerable nameless humans from Colombia to the Philippines to Kenya and beyond who used their intelligence and human hearts to help train what we are calling artificial intelligence.
+
+- [The Exploited Labor Behind Artificial Intelligence](https://www.noemamag.com/the-exploited-labor-behind-artificial-intelligence/)
+- [Millions of Workers Are Training AI Models for Pennies](https://www.wired.com/story/millions-of-workers-are-training-ai-models-for-pennies/)
+
+A special thanks to:
+- [Drew Mcdonald of the Magic Mic Plugin](https://github.com/drewmcdonald/obsidian-magic-mic) for learning how to access & use the audio buffers
+- [Mossy1022 of the Smart Memos Plugin](https://github.com/Mossy1022/Smart-Memos) for the idea of including Mermaid Charts
+
+## 🔒 License
+
+Voice AI Journal is released under the MIT License. Feel free to use, modify, and distribute it as you see fit.
+
+## ❓ FAQ
+
+**Q: Do I need both OpenAI and AssemblyAI keys?**
+A: An OpenAI key is essential for transcription and summarization. The AssemblyAI key is optional but provides enhanced transcription accuracy.
+
+**Q: Can I use Voice AI Journal on mobile devices?**
+A: Yes, Voice AI Journal has full functionality on mobile devices. It's designed to handle interruptions and connectivity issues gracefully.
+
+**Q: What happens if a step fails during processing?**
+A: If any step fails, you can simply resume the process without losing any progress. The plugin will regenerate the note, transcription, and summary.
+
+## 📬 Contact
+
+Got questions, feedback, or ideas? Reach out through [GitHub Issues](#) or join our Discord channel to become part of the Voice AI Journal community.
+
+## 📤 Troubleshooting
 
 - **Microphone Access**: Ensure your browser/Obsidian has permission to access your microphone
 - **Processing Errors**: Check console logs for detailed error messages
 - **AI Provider Issues**: Verify your AI provider configuration in Obsidian settings
 
-## Development
+## 💻 Development
 
 ### Building from Source
 
@@ -118,20 +194,6 @@ Create specialized templates for different types of journal entries:
 3. Build the plugin: `npm run build`
 4. Copy the built files to your Obsidian plugins folder
 
-### Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgements
-
-- Built with [Obsidian API](https://github.com/obsidianmd/obsidian-api)
-- Uses [Obsidian AI Providers SDK](https://docs.obsidian.md/Plugins/AI/AI+providers)
-
 ---
 
 Created by [Tomorrowflow](https://github.com/tomorrowflow)
-
