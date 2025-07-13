@@ -1,6 +1,7 @@
 import { Modal, setIcon, Setting, Notice, Platform } from 'obsidian';
 import type VoiceAIJournalPlugin from '../../../main';
 import { formatRecordingTime } from '../utils/timeUtils';
+import { SoundWaveVisualizer } from '../../components/SoundWaveVisualizer';
 
 export interface RecordingModalOptions {
     appendToActiveNote: boolean;
@@ -11,7 +12,40 @@ export interface RecordingModalOptions {
 }
 
 /**
- * Modal for audio recording with controls and options
+ * Modal for audio recording with controls, options, and real-time visualization
+ *
+ * This modal provides a comprehensive interface for audio recording with:
+ * - Real-time sound wave visualization during recording
+ * - Recording controls (start, pause/resume, stop, reset)
+ * - Session configuration options
+ * - Progress tracking during processing
+ * - Mobile device optimizations
+ * - Wake lock management to prevent screen sleep
+ *
+ * Sound Wave Visualizer Integration:
+ * - Automatically initializes SoundWaveVisualizer component
+ * - Shares MediaStream between recording and visualization
+ * - Handles visualizer lifecycle (start, pause, resume, stop, cleanup)
+ * - Provides graceful fallback if visualization fails
+ * - Ensures recording functionality is never compromised by visualizer issues
+ *
+ * Error Handling Strategy:
+ * - Visualizer errors are logged but don't affect recording functionality
+ * - Fallback UI elements are created if visualizer initialization fails
+ * - All visualizer operations are wrapped in try-catch blocks
+ * - Recording operations always take priority over visualization
+ *
+ * Mobile Compatibility:
+ * - Detects mobile devices and adjusts UI accordingly
+ * - Implements wake lock to prevent screen sleep during recording
+ * - Optimizes visualizer performance for mobile devices
+ * - Handles touch-based interactions
+ *
+ * Performance Considerations:
+ * - Visualizer uses shared MediaStream to avoid duplicate audio processing
+ * - Automatic performance monitoring and quality adjustment
+ * - Memory leak prevention with proper cleanup
+ * - Frame rate optimization based on device capabilities
  */
 export class RecordingModal extends Modal {
     private plugin: VoiceAIJournalPlugin;
@@ -31,6 +65,24 @@ export class RecordingModal extends Modal {
     private totalProcessingSteps = 0;
     private finalRecordingTime: number | null = null;
     private wakeLock: any = null; // Store the wake lock object
+    
+    /**
+     * Sound wave visualizer instance for real-time audio visualization
+     *
+     * Lifecycle Management:
+     * - Initialized in createModalContent() with error handling
+     * - Started when recording begins with MediaStream sharing
+     * - Paused/resumed with recording state changes
+     * - Stopped when recording completes or is reset
+     * - Destroyed when modal closes with comprehensive cleanup
+     *
+     * Error Handling:
+     * - Null when initialization fails (graceful degradation)
+     * - All operations wrapped in try-catch blocks
+     * - Fallback UI created if visualizer unavailable
+     * - Recording functionality never compromised by visualizer issues
+     */
+    private soundWave: SoundWaveVisualizer | null = null;
 
     constructor(plugin: VoiceAIJournalPlugin) {
         super(plugin.app);
@@ -73,6 +125,20 @@ export class RecordingModal extends Modal {
         // Reset the final recording time
         this.finalRecordingTime = null;
         
+        // Cleanup visualizer with comprehensive error handling
+        if (this.soundWave) {
+            try {
+                console.log('[Voice AI Journal] Cleaning up sound wave visualizer...');
+                this.soundWave.destroy();
+                this.soundWave = null;
+                console.log('[Voice AI Journal] Sound wave visualizer cleaned up successfully');
+            } catch (error) {
+                console.error('[Voice AI Journal] Error cleaning up visualizer:', error);
+                // Force cleanup even if destroy() failed
+                this.soundWave = null;
+            }
+        }
+        
         // Cancel any ongoing recording
         this.plugin.cancelRecording();
         
@@ -99,6 +165,45 @@ export class RecordingModal extends Modal {
             'font-weight: bold;',
             'font-family: monospace;'
         ].join(' '));
+
+        // --- Sound Wave Visualizer ---
+        const waveContainer = container.createDiv({ cls: 'vaj-wave-container' });
+        waveContainer.setAttr('style', [
+            'width: 100%;',
+            'display: flex;',
+            'justify-content: center;',
+            'margin: 12px 0;'
+        ].join(' '));
+
+        // Initialize sound wave visualizer with comprehensive error handling
+        try {
+            this.soundWave = new SoundWaveVisualizer(waveContainer, 200, 60);
+            console.log('[Voice AI Journal] Sound wave visualizer initialized successfully');
+        } catch (error) {
+            console.error('[Voice AI Journal] Failed to initialize sound wave visualizer:', error);
+            this.soundWave = null;
+            
+            // Create fallback visual element to maintain UI consistency
+            try {
+                const fallbackElement = waveContainer.createDiv({ cls: 'vaj-wave-fallback' });
+                fallbackElement.setAttr('style', [
+                    'width: 200px;',
+                    'height: 60px;',
+                    'background-color: var(--background-secondary);',
+                    'border-radius: 4px;',
+                    'border: 1px solid var(--background-modifier-border);',
+                    'display: flex;',
+                    'align-items: center;',
+                    'justify-content: center;',
+                    'color: var(--text-muted);',
+                    'font-size: 12px;'
+                ].join(' '));
+                fallbackElement.textContent = 'Visualization unavailable';
+                console.log('[Voice AI Journal] Created fallback visualization element');
+            } catch (fallbackError) {
+                console.error('[Voice AI Journal] Failed to create fallback visualization:', fallbackError);
+            }
+        }
 
         // --- Button Controls ---
         const buttonContainer = container.createDiv({ cls: 'vaj-control-buttons-container' });
@@ -369,6 +474,44 @@ export class RecordingModal extends Modal {
             this.stopButton.style.display = 'inline-block';
             this.resetButton.style.display = 'inline-block';
             
+            // Start visualizer if available with enhanced error handling
+            if (this.soundWave) {
+                try {
+                    console.log('[Voice AI Journal] Starting sound wave visualization...');
+                    
+                    // Access the MediaStream from the MediaRecorder with validation
+                    const mediaRecorder = (this.plugin.recordingManager as any).mediaRecorder;
+                    if (mediaRecorder && mediaRecorder.stream) {
+                        // Validate stream before passing to visualizer
+                        const stream = mediaRecorder.stream;
+                        const audioTracks = stream.getAudioTracks();
+                        
+                        if (audioTracks.length > 0 && audioTracks[0].enabled) {
+                            this.soundWave.startRecording(stream);
+                            console.log('[Voice AI Journal] Sound wave visualization started successfully');
+                        } else {
+                            console.warn('[Voice AI Journal] No enabled audio tracks found, visualizer will use fallback animation');
+                            this.soundWave.startRecording(stream); // Still start for fallback animation
+                        }
+                    } else {
+                        console.warn('[Voice AI Journal] MediaRecorder or stream not available, visualizer will use fallback animation');
+                        // Create a dummy stream for fallback animation
+                        try {
+                            const dummyStream = new MediaStream();
+                            this.soundWave.startRecording(dummyStream);
+                        } catch (dummyError) {
+                            console.error('[Voice AI Journal] Failed to create dummy stream for visualizer:', dummyError);
+                        }
+                    }
+                } catch (error) {
+                    console.error('[Voice AI Journal] Error starting visualizer:', error);
+                    // Recording should continue even if visualizer fails
+                    console.log('[Voice AI Journal] Recording will continue without visualization');
+                }
+            } else {
+                console.log('[Voice AI Journal] Sound wave visualizer not available, continuing without visualization');
+            }
+            
             // Request wake lock to keep screen on during recording
             await this.requestWakeLock();
         }
@@ -384,6 +527,50 @@ export class RecordingModal extends Modal {
                 // Always use the helper to update icon and text
                 const isPaused = this.plugin.getRecordingState() === 'paused';
                 this.setPauseResumeButton(isPaused ? 'resume' : 'pause');
+                
+                // Handle visualizer pause/resume with enhanced error handling
+                if (this.soundWave) {
+                    try {
+                        if (isPaused) {
+                            console.log('[Voice AI Journal] Pausing sound wave visualization');
+                            this.soundWave.stopRecording();
+                        } else {
+                            console.log('[Voice AI Journal] Resuming sound wave visualization');
+                            
+                            // Resume - restart visualizer with the stream
+                            const mediaRecorder = (this.plugin.recordingManager as any).mediaRecorder;
+                            if (mediaRecorder && mediaRecorder.stream) {
+                                // Validate stream before resuming
+                                const stream = mediaRecorder.stream;
+                                const audioTracks = stream.getAudioTracks();
+                                
+                                if (audioTracks.length > 0) {
+                                    this.soundWave.startRecording(stream);
+                                    console.log('[Voice AI Journal] Sound wave visualization resumed successfully');
+                                } else {
+                                    console.warn('[Voice AI Journal] No audio tracks available for visualization resume');
+                                    // Still start for fallback animation
+                                    this.soundWave.startRecording(stream);
+                                }
+                            } else {
+                                console.warn('[Voice AI Journal] MediaRecorder or stream not available for visualization resume');
+                                // Create dummy stream for fallback
+                                try {
+                                    const dummyStream = new MediaStream();
+                                    this.soundWave.startRecording(dummyStream);
+                                } catch (dummyError) {
+                                    console.error('[Voice AI Journal] Failed to create dummy stream for resume:', dummyError);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[Voice AI Journal] Error handling visualizer pause/resume:', error);
+                        // Ensure recording functionality is not affected by visualizer issues
+                        console.log('[Voice AI Journal] Recording pause/resume will continue without visualization');
+                    }
+                } else {
+                    console.log('[Voice AI Journal] Sound wave visualizer not available for pause/resume');
+                }
             }
         }
     }
@@ -391,6 +578,19 @@ export class RecordingModal extends Modal {
     private async handleComplete() {
         // Store the final recording time before stopping
         this.finalRecordingTime = this.plugin.getRecordingTime();
+        
+        // Stop visualizer with enhanced error handling
+        if (this.soundWave) {
+            try {
+                console.log('[Voice AI Journal] Stopping sound wave visualization for completion');
+                this.soundWave.stopRecording();
+                console.log('[Voice AI Journal] Sound wave visualization stopped successfully');
+            } catch (error) {
+                console.error('[Voice AI Journal] Error stopping visualizer during completion:', error);
+                // Don't let visualizer errors affect recording completion
+                console.log('[Voice AI Journal] Recording completion will continue despite visualizer error');
+            }
+        }
         
         // Disable buttons during processing
         this.disableButtons();
@@ -442,6 +642,20 @@ export class RecordingModal extends Modal {
         if (recordingState !== 'inactive') {
             // Clear the final recording time when explicitly resetting
             this.finalRecordingTime = null;
+            
+            // Reset visualizer to idle state with enhanced error handling
+            if (this.soundWave) {
+                try {
+                    console.log('[Voice AI Journal] Resetting sound wave visualization to idle state');
+                    this.soundWave.stopRecording();
+                    console.log('[Voice AI Journal] Sound wave visualization reset successfully');
+                } catch (error) {
+                    console.error('[Voice AI Journal] Error resetting visualizer:', error);
+                    // Don't let visualizer errors affect recording reset functionality
+                    console.log('[Voice AI Journal] Recording reset will continue despite visualizer error');
+                }
+            }
+            
             this.plugin.cancelRecording();
             this.isScribing = false;
             this.updateButtonDisplay();

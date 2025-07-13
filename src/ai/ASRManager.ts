@@ -174,8 +174,25 @@ export class ASRManager {
     }
     
     /**
+     * Request URL with timeout functionality using Promise.race
+     * @param options The request options for requestUrl
+     * @param timeoutMs Timeout in milliseconds
+     * @returns Promise that resolves with the response or rejects on timeout
+     */
+    private async requestUrlWithTimeout(options: any, timeoutMs: number): Promise<any> {
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs);
+        });
+        
+        return Promise.race([
+            requestUrl(options),
+            timeoutPromise
+        ]);
+    }
+
+    /**
      * Detect the language of an audio file using the local Whisper ASR server
-     * 
+     *
      * @param audioBlob The audio blob to analyze for language detection
      * @param fileExtension The file extension of the audio file
      * @returns An object with detected language code and name
@@ -232,7 +249,7 @@ export class ASRManager {
             
             // Send the request with the proper Content-Type header
             new Notice('Voice AI Journal: Detecting language...');
-            const response = await requestUrl({
+            const response = await this.requestUrlWithTimeout({
                 url: url,
                 method: 'POST',
                 body: combinedArray.buffer,
@@ -240,7 +257,7 @@ export class ASRManager {
                     'Content-Type': `multipart/form-data; boundary=${boundary}`,
                 },
                 throw: false, // Don't throw on error, handle it manually
-            });
+            }, 600000); // 10 minutes timeout for language detection
             
             // Check for errors
             if (response.status !== 200) {
@@ -383,7 +400,7 @@ export class ASRManager {
             
             // Send the request with the proper Content-Type header
             new Notice('Voice AI Journal: Transcribing audio...');
-            const response = await requestUrl({
+            const response = await this.requestUrlWithTimeout({
                 url: url,
                 method: 'POST',
                 body: combinedArray.buffer,
@@ -391,7 +408,7 @@ export class ASRManager {
                     'Content-Type': `multipart/form-data; boundary=${boundary}`,
                 },
                 throw: false, // Don't throw on error, handle it manually
-            });
+            }, 600000); // 10 minutes timeout for transcription
             
             // Check for errors
             if (response.status !== 200) {
