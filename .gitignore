@@ -27,3 +27,6 @@ logs/conport.log
 alembic.ini
 alembic/
 context_portal/
+. kilocodemodes
+.bmad-core
+.claude
